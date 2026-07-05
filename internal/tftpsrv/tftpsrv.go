@@ -10,6 +10,7 @@ import (
 	"github.com/pin/tftp"
 
 	"opensvr/internal/logbus"
+	"opensvr/internal/sessions"
 	"opensvr/internal/vfs"
 )
 
@@ -40,7 +41,16 @@ func (s *Server) readHandler(filename string, rf io.ReaderFrom) error {
 		return err
 	}
 	defer f.Close()
-	_, err = rf.ReadFrom(f)
+
+	sess := &sessions.Session{ID: sessions.NewID(), Proto: "tftp", Action: "download", File: filename}
+	if ot, ok := rf.(tftp.OutgoingTransfer); ok {
+		addr := ot.RemoteAddr()
+		sess.Remote = addr.String()
+	}
+	sessions.Add(sess)
+	defer sessions.Remove(sess.ID)
+
+	_, err = rf.ReadFrom(&countingReader{f: f, sess: sess.ID})
 	logbus.Emit(logbus.Event{Proto: "tftp", Action: "read", Path: filename, OK: err == nil})
 	return err
 }
@@ -52,9 +62,45 @@ func (s *Server) writeHandler(filename string, wt io.WriterTo) error {
 		return err
 	}
 	defer f.Close()
-	_, err = wt.WriteTo(f)
+
+	sess := &sessions.Session{ID: sessions.NewID(), Proto: "tftp", Action: "upload", File: filename}
+	if it, ok := wt.(tftp.IncomingTransfer); ok {
+		addr := it.RemoteAddr()
+		sess.Remote = addr.String()
+	}
+	sessions.Add(sess)
+	defer sessions.Remove(sess.ID)
+
+	_, err = wt.WriteTo(&countingWriter{f: f, sess: sess.ID})
 	logbus.Emit(logbus.Event{Proto: "tftp", Action: "write", Path: filename, OK: err == nil})
 	return err
+}
+
+// countingReader/countingWriter 把 TFTP 传输字节回填到会话面板（metrics 已由 vfs 计数）。
+type countingReader struct {
+	f    io.Reader
+	sess string
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.f.Read(p)
+	if n > 0 {
+		sessions.AddBytes(c.sess, int64(n))
+	}
+	return n, err
+}
+
+type countingWriter struct {
+	f    io.Writer
+	sess string
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	n, err := c.f.Write(p)
+	if n > 0 {
+		sessions.AddBytes(c.sess, int64(n))
+	}
+	return n, err
 }
 
 func (s *Server) Start() error {

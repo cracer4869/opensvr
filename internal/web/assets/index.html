@@ -3,64 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>opensvr 三协议开局服务端</title>
+  <title>opensvr · 三协议便携开局服务端</title>
+  <link rel="icon" href="favicon.svg">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header>
-    <h1>opensvr · 三协议便携开局服务端</h1>
-    <span class="sub">FTP / SFTP / TFTP · 本机管理页</span>
+  <header class="topbar">
+    <div class="brand">
+      <img src="favicon.svg" alt="logo" width="30" height="30">
+      <div class="brand-txt">
+        <h1>opensvr</h1>
+        <span class="sub">三协议便携开局服务端 · FTP / SFTP / TFTP</span>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button id="all-start" class="btn ghost">全部启动</button>
+      <button id="all-stop" class="btn ghost">全部停止</button>
+    </div>
   </header>
 
-  <main>
-    <div id="root-warn" class="warn" style="display:none"></div>
+  <div id="root-warn" class="warn" hidden></div>
 
-    <section class="card">
-      <h2>协议服务</h2>
-      <div id="protos"></div>
+  <main class="grid">
+
+    <!-- 协议服务 -->
+    <section class="card span-2">
+      <div class="card-head"><h2>协议服务</h2><span class="hint">端口可改，回车或失焦保存</span></div>
+      <div id="protos" class="protos"></div>
     </section>
 
-    <section class="card">
-      <h2>账号（明文）</h2>
-      <div class="creds">
-        <label>用户名 <input id="auth-user" type="text"></label>
-        <label>密码 <input id="auth-pass" type="text"></label>
-        <label class="chk"><input id="auth-anon" type="checkbox"> 允许匿名</label>
-        <button id="auth-save">保存账号</button>
+    <!-- 性能 -->
+    <section class="card span-2">
+      <div class="card-head">
+        <h2>吞吐性能</h2>
+        <div class="legend">
+          <span class="lg"><i class="dot up"></i>上行 <b id="rate-up">0 B/s</b></span>
+          <span class="lg"><i class="dot down"></i>下行 <b id="rate-down">0 B/s</b></span>
+        </div>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart" height="200"></canvas>
+        <div id="chart-tip" class="chart-tip" hidden></div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>根目录</h2>
-      <div class="rootrow">
-        <input id="root-dir" type="text" placeholder="共享根目录路径">
-        <button id="root-save">设置根目录</button>
+    <!-- 文件管理器 -->
+    <section class="card span-2">
+      <div class="card-head">
+        <h2>文件管理器</h2>
+        <div class="fm-actions">
+          <button id="fm-mkdir" class="btn sm">新建文件夹</button>
+          <button id="fm-upload-btn" class="btn sm primary">上传文件</button>
+          <input id="fm-file" type="file" multiple hidden>
+        </div>
+      </div>
+      <div id="fm-crumbs" class="crumbs"></div>
+      <div id="fm-drop" class="dropzone">
+        <table class="fm-table">
+          <thead><tr><th>名称</th><th class="num">大小</th><th>修改时间</th><th></th></tr></thead>
+          <tbody id="fm-list"></tbody>
+        </table>
+        <div id="fm-empty" class="empty" hidden>空目录 · 把固件/配置拖到这里上传</div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>本机网卡地址</h2>
-      <table id="nics">
-        <thead><tr><th>网卡</th><th>IP</th><th>CIDR</th></tr></thead>
-        <tbody></tbody>
+    <!-- 当前连接 -->
+    <section class="card span-2">
+      <div class="card-head"><h2>当前连接</h2><span id="sess-count" class="pill muted">0</span></div>
+      <table class="sess-table">
+        <thead><tr><th>协议</th><th>来源</th><th>用户</th><th>动作</th><th>文件</th><th class="num">已传</th><th>开始</th></tr></thead>
+        <tbody id="sessions"></tbody>
       </table>
-      <button id="fw-btn">一键放行防火墙（需管理员）</button>
-      <div id="fw-msg" class="msg"></div>
+      <div id="sess-empty" class="empty">暂无连接</div>
     </section>
 
+    <!-- 网卡 -->
     <section class="card">
-      <h2>吞吐性能</h2>
-      <div class="rates">
-        <span class="rate up">上行 <b id="rate-up">0 B/s</b></span>
-        <span class="rate down">下行 <b id="rate-down">0 B/s</b></span>
-      </div>
-      <canvas id="chart" width="600" height="180"></canvas>
+      <div class="card-head"><h2>本机网卡地址</h2><span class="hint">点 IP 复制</span></div>
+      <table class="nic-table">
+        <thead><tr><th>网卡</th><th>IP</th><th>CIDR</th></tr></thead>
+        <tbody id="nics"></tbody>
+      </table>
+      <button id="fw-btn" class="btn full">一键放行 Windows 防火墙（需管理员）</button>
+      <div id="fw-msg" class="msg" hidden></div>
     </section>
 
+    <!-- 账号 + 根目录 -->
     <section class="card">
-      <h2>实时日志</h2>
+      <div class="card-head"><h2>账号（明文）</h2></div>
+      <div class="field"><label>用户名</label><input id="auth-user" type="text"></div>
+      <div class="field"><label>密码</label><input id="auth-pass" type="text"></div>
+      <label class="chk"><input id="auth-anon" type="checkbox"> 允许匿名登录</label>
+      <button id="auth-save" class="btn full">保存账号</button>
+      <hr>
+      <div class="card-head"><h2>共享根目录</h2></div>
+      <div class="field"><label>路径</label><input id="root-dir" type="text" placeholder="留空=exe同级/开局文件"></div>
+      <button id="root-save" class="btn full">设置根目录</button>
+    </section>
+
+    <!-- 日志 -->
+    <section class="card span-2">
+      <div class="card-head"><h2>实时日志</h2><button id="log-clear" class="btn sm">清屏</button></div>
       <div id="log" class="log"></div>
     </section>
+
   </main>
 
   <script src="app.js"></script>

@@ -45,6 +45,12 @@ func (w *Web) handler() *http.ServeMux {
 	mux.HandleFunc("/api/firewall", w.handleFirewall)
 	mux.HandleFunc("/api/events", w.handleEvents)
 	mux.HandleFunc("/api/metrics", w.handleMetrics)
+	mux.HandleFunc("/api/sessions", w.handleSessions)
+	mux.HandleFunc("/api/files", w.handleFiles)
+	mux.HandleFunc("/api/files/mkdir", w.handleFilesMkdir)
+	mux.HandleFunc("/api/files/delete", w.handleFilesDelete)
+	mux.HandleFunc("/api/files/upload", w.handleFilesUpload)
+	mux.HandleFunc("/api/files/download", w.handleFilesDownload)
 
 	return mux
 }

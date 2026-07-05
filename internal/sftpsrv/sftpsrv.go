@@ -10,6 +10,7 @@ import (
 
 	"opensvr/internal/auth"
 	"opensvr/internal/logbus"
+	"opensvr/internal/sessions"
 	"opensvr/internal/vfs"
 )
 
@@ -91,6 +92,17 @@ func (s *Server) handleConn(c net.Conn, sc *ssh.ServerConfig) {
 	defer conn.Close()
 	go ssh.DiscardRequests(reqs)
 
+	// 登记会话，供 Web "当前连接" 面板展示。
+	sessID := sessions.NewID()
+	sessions.Add(&sessions.Session{
+		ID:     sessID,
+		Proto:  "sftp",
+		Remote: conn.RemoteAddr().String(),
+		User:   conn.User(),
+		Action: "connected",
+	})
+	defer sessions.Remove(sessID)
+
 	for nc := range chans {
 		if nc.ChannelType() != "session" {
 			nc.Reject(ssh.UnknownChannelType, "only session")
@@ -108,8 +120,8 @@ func (s *Server) handleConn(c net.Conn, sc *ssh.ServerConfig) {
 			}
 		}(requests)
 
-		// Handlers 走 vfs.Fs()（afero，已囚笼），随机读写计入 metrics。
-		h := newHandlers(s.v)
+		// Handlers 走 vfs.Fs()（afero，已囚笼），随机读写计入 metrics 与会话。
+		h := newHandlers(s.v, sessID)
 		srv := sftp.NewRequestServer(ch, h)
 		go func(rs *sftp.RequestServer, channel ssh.Channel) {
 			_ = rs.Serve()

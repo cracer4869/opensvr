@@ -11,6 +11,7 @@ import (
 
 	"opensvr/internal/auth"
 	"opensvr/internal/logbus"
+	"opensvr/internal/sessions"
 	"opensvr/internal/vfs"
 )
 
@@ -41,7 +42,11 @@ func New(v *vfs.VFS, a *auth.Store, port int, passive [2]int) *Server {
 }
 
 // ----- MainDriver 实现 -----
-type driver struct{ s *Server }
+type driver struct {
+	s   *Server
+	mu  sync.Mutex
+	ids map[uint32]string // ftpserverlib 客户端ID -> 会话ID
+}
 
 func (d *driver) GetSettings() (*ftpserver.Settings, error) {
 	st := &ftpserver.Settings{
@@ -54,10 +59,26 @@ func (d *driver) GetSettings() (*ftpserver.Settings, error) {
 }
 
 func (d *driver) ClientConnected(cc ftpserver.ClientContext) (string, error) {
+	id := sessions.NewID()
+	d.mu.Lock()
+	d.ids[cc.ID()] = id
+	d.mu.Unlock()
+	sessions.Add(&sessions.Session{
+		ID:     id,
+		Proto:  "ftp",
+		Remote: cc.RemoteAddr().String(),
+		Action: "connected",
+	})
 	return "opensvr", nil
 }
 
-func (d *driver) ClientDisconnected(cc ftpserver.ClientContext) {}
+func (d *driver) ClientDisconnected(cc ftpserver.ClientContext) {
+	d.mu.Lock()
+	id := d.ids[cc.ID()]
+	delete(d.ids, cc.ID())
+	d.mu.Unlock()
+	sessions.Remove(id)
+}
 
 func (d *driver) AuthUser(cc ftpserver.ClientContext, user, pass string) (ftpserver.ClientDriver, error) {
 	ok, _ := d.s.a.Authenticate(user, pass)
@@ -66,7 +87,12 @@ func (d *driver) AuthUser(cc ftpserver.ClientContext, user, pass string) (ftpser
 		return nil, fmt.Errorf("authentication failed")
 	}
 	logbus.Emit(logbus.Event{Proto: "ftp", User: user, Action: "login", OK: true})
-	return d.s.v.Fs(), nil
+	d.mu.Lock()
+	id := d.ids[cc.ID()]
+	d.mu.Unlock()
+	sessions.Update(id, func(s *sessions.Session) { s.User = user })
+	// 返回会话感知的 Fs：传输字节回填到该会话（底层仍是囚笼+metrics 计数的 vfs）。
+	return newSessionFs(d.s.v.Fs(), id), nil
 }
 
 func (d *driver) GetTLSConfig() (*tls.Config, error) {
@@ -80,7 +106,7 @@ func (s *Server) Start() error {
 	if s.running {
 		return nil
 	}
-	s.srv = ftpserver.NewFtpServer(&driver{s: s})
+	s.srv = ftpserver.NewFtpServer(&driver{s: s, ids: map[uint32]string{}})
 	if err := s.srv.Listen(); err != nil {
 		s.err = err.Error()
 		return err

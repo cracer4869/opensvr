@@ -9,12 +9,14 @@ import (
 
 	"opensvr/internal/logbus"
 	"opensvr/internal/metrics"
+	"opensvr/internal/sessions"
 	"opensvr/internal/vfs"
 )
 
 // newHandlers 基于 vfs 的 afero.Fs（囚笼在 root 内）构造 sftp.Handlers。
-func newHandlers(v *vfs.VFS) sftp.Handlers {
-	h := &aferoHandler{v: v}
+// sessID 用于把读写进度回填到会话面板。
+func newHandlers(v *vfs.VFS, sessID string) sftp.Handlers {
+	h := &aferoHandler{v: v, sess: sessID}
 	return sftp.Handlers{
 		FileGet:  h,
 		FilePut:  h,
@@ -24,7 +26,10 @@ func newHandlers(v *vfs.VFS) sftp.Handlers {
 }
 
 // aferoHandler 把 sftp 请求转发到 vfs 的 afero.Fs，天然囚笼且防越界。
-type aferoHandler struct{ v *vfs.VFS }
+type aferoHandler struct {
+	v    *vfs.VFS
+	sess string
+}
 
 func (h *aferoHandler) fs() afero.Fs { return h.v.Fs() }
 
@@ -36,7 +41,8 @@ func (h *aferoHandler) Fileread(r *sftp.Request) (io.ReaderAt, error) {
 		return nil, err
 	}
 	logbus.Emit(logbus.Event{Proto: "sftp", Action: "download", Path: r.Filepath, OK: true})
-	return &countingReaderAt{f: f}, nil
+	sessions.Update(h.sess, func(s *sessions.Session) { s.Action = "download"; s.File = r.Filepath })
+	return &countingReaderAt{f: f, sess: h.sess}, nil
 }
 
 // Filewrite 处理上传（Put/Open 写）。
@@ -62,7 +68,8 @@ func (h *aferoHandler) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 		return nil, err
 	}
 	logbus.Emit(logbus.Event{Proto: "sftp", Action: "upload", Path: r.Filepath, OK: true})
-	return &countingWriterAt{f: f}, nil
+	sessions.Update(h.sess, func(s *sessions.Session) { s.Action = "upload"; s.File = r.Filepath })
+	return &countingWriterAt{f: f, sess: h.sess}, nil
 }
 
 // Filecmd 处理 Mkdir/Rmdir/Remove/Rename/Setstat 等。
@@ -124,12 +131,16 @@ func (l listerAt) ListAt(ls []os.FileInfo, offset int64) (int, error) {
 }
 
 // countingReaderAt 在随机读上累加下行字节（afero 计数只覆盖顺序 Read）。
-type countingReaderAt struct{ f afero.File }
+type countingReaderAt struct {
+	f    afero.File
+	sess string
+}
 
 func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
 	n, err := c.f.ReadAt(p, off)
 	if n > 0 {
 		metrics.AddDown(int64(n))
+		sessions.AddBytes(c.sess, int64(n))
 	}
 	return n, err
 }
@@ -137,12 +148,16 @@ func (c *countingReaderAt) ReadAt(p []byte, off int64) (int, error) {
 func (c *countingReaderAt) Close() error { return c.f.Close() }
 
 // countingWriterAt 在随机写上累加上行字节。
-type countingWriterAt struct{ f afero.File }
+type countingWriterAt struct {
+	f    afero.File
+	sess string
+}
 
 func (c *countingWriterAt) WriteAt(p []byte, off int64) (int, error) {
 	n, err := c.f.WriteAt(p, off)
 	if n > 0 {
 		metrics.AddUp(int64(n))
+		sessions.AddBytes(c.sess, int64(n))
 	}
 	return n, err
 }
