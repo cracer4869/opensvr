@@ -32,6 +32,17 @@
       <div id="protos" class="protos"></div>
     </section>
 
+    <!-- 共享根目录 -->
+    <section class="card span-2">
+      <div class="card-head"><h2>共享根目录</h2><span class="hint">固件 / 配置放这里，供设备拉取</span></div>
+      <div class="rootcur" title="当前生效目录">📂 <span id="root-cur">—</span></div>
+      <div class="rootrow">
+        <button id="root-pick" class="btn primary">选择目录…</button>
+        <input id="root-dir" type="text" placeholder="或手动输入路径，留空 = exe 同级 /开局文件">
+        <button id="root-save" class="btn">设置</button>
+      </div>
+    </section>
+
     <!-- 性能 -->
     <section class="card span-2">
       <div class="card-head">
@@ -47,26 +58,6 @@
       </div>
     </section>
 
-    <!-- 文件管理器 -->
-    <section class="card span-2">
-      <div class="card-head">
-        <h2>文件管理器</h2>
-        <div class="fm-actions">
-          <button id="fm-mkdir" class="btn sm">新建文件夹</button>
-          <button id="fm-upload-btn" class="btn sm primary">上传文件</button>
-          <input id="fm-file" type="file" multiple hidden>
-        </div>
-      </div>
-      <div id="fm-crumbs" class="crumbs"></div>
-      <div id="fm-drop" class="dropzone">
-        <table class="fm-table">
-          <thead><tr><th>名称</th><th class="num">大小</th><th>修改时间</th><th></th></tr></thead>
-          <tbody id="fm-list"></tbody>
-        </table>
-        <div id="fm-empty" class="empty" hidden>空目录 · 把固件/配置拖到这里上传</div>
-      </div>
-    </section>
-
     <!-- 当前连接 -->
     <section class="card span-2">
       <div class="card-head"><h2>当前连接</h2><span id="sess-count" class="pill muted">0</span></div>
@@ -77,28 +68,38 @@
       <div id="sess-empty" class="empty">暂无连接</div>
     </section>
 
-    <!-- 网卡 -->
-    <section class="card">
-      <div class="card-head"><h2>本机网卡地址</h2><span class="hint">点 IP 复制</span></div>
-      <table class="nic-table">
-        <thead><tr><th>网卡</th><th>IP</th><th>CIDR</th></tr></thead>
-        <tbody id="nics"></tbody>
-      </table>
-      <button id="fw-btn" class="btn full">一键放行 Windows 防火墙（需管理员）</button>
-      <div id="fw-msg" class="msg" hidden></div>
-    </section>
-
-    <!-- 账号 + 根目录 -->
+    <!-- 账号 -->
     <section class="card">
       <div class="card-head"><h2>账号（明文）</h2></div>
       <div class="field"><label>用户名</label><input id="auth-user" type="text"></div>
       <div class="field"><label>密码</label><input id="auth-pass" type="text"></div>
       <label class="chk"><input id="auth-anon" type="checkbox"> 允许匿名登录</label>
       <button id="auth-save" class="btn full">保存账号</button>
-      <hr>
-      <div class="card-head"><h2>共享根目录</h2></div>
-      <div class="field"><label>路径</label><input id="root-dir" type="text" placeholder="留空=exe同级/开局文件"></div>
-      <button id="root-save" class="btn full">设置根目录</button>
+    </section>
+
+    <!-- 访问权限 -->
+    <section class="card">
+      <div class="card-head"><h2>访问权限</h2><span class="hint">作用于根目录及子目录 · 默认全开</span></div>
+      <div class="perms">
+        <label class="chk"><input type="checkbox" data-perm="read"> 读文件 / 下载</label>
+        <label class="chk"><input type="checkbox" data-perm="write"> 写文件 / 上传</label>
+        <label class="chk"><input type="checkbox" data-perm="list"> 列目录</label>
+        <label class="chk"><input type="checkbox" data-perm="mkdir"> 新建目录</label>
+        <label class="chk"><input type="checkbox" data-perm="delete"> 删除</label>
+        <label class="chk"><input type="checkbox" data-perm="rename"> 改名 / 移动</label>
+      </div>
+      <button id="perms-save" class="btn full">保存权限</button>
+    </section>
+
+    <!-- 网卡 -->
+    <section class="card span-2">
+      <div class="card-head"><h2>本机网卡地址</h2><span class="hint">点 IP 复制 · 选与设备同网段的那个</span></div>
+      <table class="nic-table">
+        <thead><tr><th>网卡</th><th>IP</th><th>CIDR</th></tr></thead>
+        <tbody id="nics"></tbody>
+      </table>
+      <button id="fw-btn" class="btn full">一键放行 Windows 防火墙（需管理员）</button>
+      <div id="fw-msg" class="msg" hidden></div>
     </section>
 
     <!-- 日志 -->

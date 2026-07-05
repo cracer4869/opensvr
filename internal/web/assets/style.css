@@ -219,6 +219,18 @@ tr:last-child td { border-bottom: none; }
 .msg.ok { color: var(--good); }
 .msg.err { color: var(--critical); }
 
+/* ---- 根目录 ---- */
+.rootcur {
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 10px; font-size: 13px; color: var(--ink);
+  font-family: "Consolas", "Cascadia Mono", monospace; word-break: break-all;
+}
+.rootrow { display: flex; gap: 8px; align-items: center; }
+.rootrow input { flex: 1; }
+
+/* ---- 权限 ---- */
+.perms { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-bottom: 10px; }
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--baseline); border-radius: 6px; border: 2px solid var(--surface); }
 ::-webkit-scrollbar-track { background: transparent; }

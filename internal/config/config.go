@@ -30,6 +30,21 @@ type AuthCfg struct {
 	Anonymous bool   `yaml:"anonymous"`
 }
 
+// Perms 目录操作权限（作用于根目录及其所有子目录）。默认全开=最大权限。
+type Perms struct {
+	Read   bool `yaml:"read" json:"read"`     // 读文件 / 下载
+	Write  bool `yaml:"write" json:"write"`   // 写文件 / 上传
+	List   bool `yaml:"list" json:"list"`     // 列目录
+	Mkdir  bool `yaml:"mkdir" json:"mkdir"`   // 新建目录
+	Delete bool `yaml:"delete" json:"delete"` // 删除
+	Rename bool `yaml:"rename" json:"rename"` // 改名 / 移动
+}
+
+// AllPerms 返回最大权限（全部允许）。
+func AllPerms() Perms {
+	return Perms{Read: true, Write: true, List: true, Mkdir: true, Delete: true, Rename: true}
+}
+
 // Config 全局配置。
 type Config struct {
 	RootDir         string   `yaml:"root_dir"`
@@ -38,6 +53,7 @@ type Config struct {
 	TFTP            ProtoCfg `yaml:"tftp"`
 	Web             WebCfg   `yaml:"web"`
 	Auth            AuthCfg  `yaml:"auth"`
+	Perms           Perms    `yaml:"perms"`
 	PassiveRange    [2]int   `yaml:"passive_range"`
 	AutoOpenBrowser bool     `yaml:"auto_open_browser"`
 	LogToFile       bool     `yaml:"log_to_file"`
@@ -54,6 +70,7 @@ func Default() *Config {
 		TFTP:            ProtoCfg{Enabled: false, Port: 69},
 		Web:             WebCfg{Port: 31944},
 		Auth:            AuthCfg{User: "admin", Pass: "admin", Anonymous: false},
+		Perms:           AllPerms(),
 		PassiveRange:    [2]int{50000, 50100},
 		AutoOpenBrowser: true,
 		LogToFile:       false,

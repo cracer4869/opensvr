@@ -49,6 +49,7 @@ func New(cfg *config.Config, dir string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	v.SetPerms(cfg.Perms)
 	a := auth.New(cfg.Auth)
 	hostkeyPath := filepath.Join(dir, "hostkey")
 	signer, err := hostkey.LoadOrCreate(hostkeyPath)
@@ -173,6 +174,15 @@ func (m *Manager) SetAuth(cfg config.AuthCfg) {
 	defer m.mu.Unlock()
 	m.a.Update(cfg)
 	m.cfg.Auth = cfg
+	_ = m.save()
+}
+
+// SetPerms 更新目录操作权限：即时作用于 vfs、更新 cfg 并持久化。
+func (m *Manager) SetPerms(p config.Perms) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.v.SetPerms(p)
+	m.cfg.Perms = p
 	_ = m.save()
 }
 

@@ -39,7 +39,9 @@ async function loadStatus() {
   try { s = await (await fetch("/api/status")).json(); } catch { return; }
   renderProtos(s);
   renderAuth(s.auth);
+  document.getElementById("root-cur").textContent = s.root || "—";
   document.getElementById("root-dir").value = s.root_config || "";
+  renderPerms(s.perms || {});
   renderWarn(s.root_warning);
   renderNics(s.nics || []);
 }
@@ -60,13 +62,11 @@ function renderProtos(s) {
     const row = el("div", "proto");
     row.appendChild(el("span", "pname", p.toUpperCase()));
 
-    // 状态
     const state = el("span", "status " + (st.err ? "err" : st.running ? "on" : "off"));
     state.appendChild(el("i", "led"));
     state.appendChild(el("span", null, st.err ? "错误: " + st.err : st.running ? "运行中 · 端口 " + st.port : "已停止"));
     row.appendChild(state);
 
-    // 端口输入
     const portInput = el("input", "port");
     portInput.type = "number"; portInput.value = port; portInput.title = "端口";
     portInput.onchange = async () => {
@@ -75,7 +75,6 @@ function renderProtos(s) {
     };
     row.appendChild(portInput);
 
-    // 开关
     const sw = el("label", "switch");
     const cb = el("input"); cb.type = "checkbox"; cb.checked = st.running;
     cb.onchange = async () => {
@@ -101,6 +100,12 @@ function renderAuth(a) {
   document.getElementById("auth-anon").checked = !!a.anonymous;
 }
 
+function renderPerms(p) {
+  document.querySelectorAll("[data-perm]").forEach((cb) => {
+    cb.checked = !!p[cb.dataset.perm];
+  });
+}
+
 function renderNics(nics) {
   const tb = document.getElementById("nics");
   tb.innerHTML = "";
@@ -121,7 +126,7 @@ function renderNics(nics) {
   }
 }
 
-/* ==================== 账号 / 根目录 / 防火墙 / 全局启停 ==================== */
+/* ==================== 账号 / 权限 / 根目录 / 防火墙 / 全局启停 ==================== */
 document.getElementById("auth-save").onclick = async () => {
   await postJSON("/api/auth", {
     user: document.getElementById("auth-user").value,
@@ -130,11 +135,35 @@ document.getElementById("auth-save").onclick = async () => {
   });
   loadStatus();
 };
+
+document.getElementById("perms-save").onclick = async () => {
+  const p = {};
+  document.querySelectorAll("[data-perm]").forEach((cb) => { p[cb.dataset.perm] = cb.checked; });
+  const r = await postJSON("/api/perms", p);
+  if (!r.ok) alert("保存权限失败: " + (await r.text()));
+  loadStatus();
+};
+
+document.getElementById("root-pick").onclick = async () => {
+  const btn = document.getElementById("root-pick");
+  const old = btn.textContent; btn.textContent = "选择中…"; btn.disabled = true;
+  try {
+    const r = await postJSON("/api/pickdir");
+    if (!r.ok) { alert("打开目录选择框失败: " + (await r.text())); return; }
+    const body = await r.json();
+    if (body.cancelled) return; // 用户取消
+    loadStatus();
+  } finally {
+    btn.textContent = old; btn.disabled = false;
+  }
+};
+
 document.getElementById("root-save").onclick = async () => {
   const r = await postJSON("/api/root", { dir: document.getElementById("root-dir").value });
   if (!r.ok) alert("设置根目录失败: " + (await r.text()));
-  loadStatus(); loadFiles(fmPath);
+  loadStatus();
 };
+
 document.getElementById("all-start").onclick = async () => {
   for (const p of PROTOS) await postJSON(`/api/proto/${p}/start`);
   loadStatus();
@@ -143,6 +172,7 @@ document.getElementById("all-stop").onclick = async () => {
   for (const p of PROTOS) await postJSON(`/api/proto/${p}/stop`);
   loadStatus();
 };
+
 document.getElementById("fw-btn").onclick = async () => {
   const msg = document.getElementById("fw-msg");
   msg.hidden = false; msg.className = "msg"; msg.textContent = "正在放行...";
@@ -152,95 +182,6 @@ document.getElementById("fw-btn").onclick = async () => {
   if (r.ok && body.ok) { msg.className = "msg ok"; msg.textContent = "防火墙放行成功\n" + detail; }
   else { msg.className = "msg err"; msg.textContent = "放行失败（可能需以管理员运行）\n" + detail; }
 };
-
-/* ==================== 文件管理器 ==================== */
-let fmPath = "";
-
-function renderCrumbs() {
-  const box = document.getElementById("fm-crumbs");
-  box.innerHTML = "";
-  const root = el("a", null, "根目录"); root.onclick = () => loadFiles("");
-  box.appendChild(root);
-  const parts = fmPath ? fmPath.split("/") : [];
-  let acc = "";
-  for (const part of parts) {
-    acc = acc ? acc + "/" + part : part;
-    box.appendChild(el("span", "sep", " / "));
-    const cur = acc;
-    const a = el("a", null, part); a.onclick = () => loadFiles(cur);
-    box.appendChild(a);
-  }
-}
-
-async function loadFiles(path) {
-  fmPath = path || "";
-  renderCrumbs();
-  let data;
-  try { data = await (await fetch("/api/files?path=" + encodeURIComponent(fmPath))).json(); }
-  catch { return; }
-  const tb = document.getElementById("fm-list");
-  const empty = document.getElementById("fm-empty");
-  tb.innerHTML = "";
-  const entries = (data.entries || []).sort((a, b) => (b.is_dir - a.is_dir) || a.name.localeCompare(b.name));
-  empty.hidden = entries.length > 0;
-  for (const e of entries) {
-    const tr = el("tr");
-    const nameTd = el("td");
-    const name = el("span", "fm-name" + (e.is_dir ? " dir" : ""));
-    name.appendChild(el("span", "ic", e.is_dir ? "📁" : "📄"));
-    name.appendChild(el("span", null, e.name));
-    if (e.is_dir) name.onclick = () => loadFiles(fmPath ? fmPath + "/" + e.name : e.name);
-    nameTd.appendChild(name);
-    tr.appendChild(nameTd);
-    tr.appendChild(el("td", "num", e.is_dir ? "—" : fmtBytes(e.size)));
-    tr.appendChild(el("td", null, e.mtime || ""));
-
-    const actTd = el("td");
-    const acts = el("div", "fm-row-actions");
-    const rel = fmPath ? fmPath + "/" + e.name : e.name;
-    if (!e.is_dir) {
-      const dl = el("button", "icon-btn", "下载"); dl.title = "下载";
-      dl.onclick = () => { window.location = "/api/files/download?path=" + encodeURIComponent(rel); };
-      acts.appendChild(dl);
-    }
-    const del = el("button", "icon-btn danger", "删除");
-    del.onclick = async () => {
-      if (!confirm(`确认删除 "${e.name}"？` + (e.is_dir ? "（含目录内全部内容）" : ""))) return;
-      const r = await postJSON("/api/files/delete", { path: rel });
-      if (!r.ok) alert("删除失败: " + (await r.text()));
-      loadFiles(fmPath);
-    };
-    acts.appendChild(del);
-    actTd.appendChild(acts);
-    tr.appendChild(actTd);
-    tb.appendChild(tr);
-  }
-}
-
-async function uploadFiles(fileList) {
-  if (!fileList || !fileList.length) return;
-  const fd = new FormData();
-  for (const f of fileList) fd.append("file", f, f.name);
-  const r = await fetch("/api/files/upload?path=" + encodeURIComponent(fmPath), { method: "POST", body: fd });
-  if (!r.ok) alert("上传失败: " + (await r.text()));
-  loadFiles(fmPath);
-}
-
-document.getElementById("fm-upload-btn").onclick = () => document.getElementById("fm-file").click();
-document.getElementById("fm-file").onchange = (e) => { uploadFiles(e.target.files); e.target.value = ""; };
-document.getElementById("fm-mkdir").onclick = async () => {
-  const name = prompt("新建文件夹名称：");
-  if (!name) return;
-  const rel = fmPath ? fmPath + "/" + name : name;
-  const r = await postJSON("/api/files/mkdir", { path: rel });
-  if (!r.ok) alert("创建失败: " + (await r.text()));
-  loadFiles(fmPath);
-};
-
-const drop = document.getElementById("fm-drop");
-["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("drag"); }));
-["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, (e) => { e.preventDefault(); if (ev === "drop" || e.target === drop) drop.classList.remove("drag"); }));
-drop.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files) uploadFiles(e.dataTransfer.files); });
 
 /* ==================== 当前连接 ==================== */
 async function loadSessions() {
@@ -319,13 +260,11 @@ function drawChart() {
   ctx.clearRect(0, 0, W, H);
   const plotW = W - padL - padR, plotH = H - padT - padB;
 
-  // 网格（recessive）
   ctx.strokeStyle = cssVar("--grid"); ctx.lineWidth = 1;
   for (let i = 0; i <= 4; i++) {
     const y = padT + (plotH / 4) * i;
     ctx.beginPath(); ctx.moveTo(padL, y + .5); ctx.lineTo(padL + plotW, y + .5); ctx.stroke();
   }
-  // 基线
   ctx.strokeStyle = cssVar("--baseline");
   ctx.beginPath(); ctx.moveTo(padL, padT + plotH + .5); ctx.lineTo(padL + plotW, padT + plotH + .5); ctx.stroke();
 
@@ -335,12 +274,9 @@ function drawChart() {
 
   drawSeries(upSeries, cssVar("--series-up"), xAt, yAt);
   drawSeries(downSeries, cssVar("--series-down"), xAt, yAt);
-
-  // 直接标注（线端圆点，作为身份锚点；实时数值由图例显示，避免重复与裁切）
   labelEnd(upSeries, cssVar("--series-up"), xAt, yAt);
   labelEnd(downSeries, cssVar("--series-down"), xAt, yAt);
 
-  // 十字准星
   if (hoverIdx >= 0) {
     const off = MAXP - upSeries.length;
     const idx = hoverIdx - off;
@@ -372,8 +308,7 @@ function drawSeries(series, color, xAt, yAt) {
 
 function labelEnd(series, color, xAt, yAt) {
   if (!series.length) return;
-  const i = series.length - 1;
-  dot(xAt(MAXP - 1), yAt(series[i]), color);
+  dot(xAt(MAXP - 1), yAt(series[series.length - 1]), color);
 }
 
 function dot(x, y, color) {
@@ -409,10 +344,8 @@ window.addEventListener("resize", drawChart);
 
 /* ==================== 启动 ==================== */
 loadStatus();
-loadFiles("");
 loadSessions();
 startLog();
 startMetrics();
 setInterval(loadStatus, 3000);
 setInterval(loadSessions, 1500);
-setInterval(() => loadFiles(fmPath), 5000);

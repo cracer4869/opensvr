@@ -40,17 +40,14 @@ func (w *Web) handler() *http.ServeMux {
 	mux.HandleFunc("/api/status", w.handleStatus)
 	mux.HandleFunc("/api/proto/", w.handleProto)
 	mux.HandleFunc("/api/root", w.handleRoot)
+	mux.HandleFunc("/api/pickdir", w.handlePickDir)
 	mux.HandleFunc("/api/port", w.handlePort)
 	mux.HandleFunc("/api/auth", w.handleAuth)
+	mux.HandleFunc("/api/perms", w.handlePerms)
 	mux.HandleFunc("/api/firewall", w.handleFirewall)
 	mux.HandleFunc("/api/events", w.handleEvents)
 	mux.HandleFunc("/api/metrics", w.handleMetrics)
 	mux.HandleFunc("/api/sessions", w.handleSessions)
-	mux.HandleFunc("/api/files", w.handleFiles)
-	mux.HandleFunc("/api/files/mkdir", w.handleFilesMkdir)
-	mux.HandleFunc("/api/files/delete", w.handleFilesDelete)
-	mux.HandleFunc("/api/files/upload", w.handleFilesUpload)
-	mux.HandleFunc("/api/files/download", w.handleFilesDownload)
 
 	return mux
 }
@@ -90,6 +87,7 @@ func (w *Web) handleStatus(rw http.ResponseWriter, r *http.Request) {
 		"root":         w.m.ActualRoot(),
 		"root_config":  cfg.RootDir,
 		"root_warning": w.m.RootWarning(),
+		"perms":        cfg.Perms,
 		"nics":         netinfo.List(),
 		"auth": map[string]any{
 			"user":      user,

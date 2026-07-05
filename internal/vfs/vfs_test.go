@@ -1,10 +1,12 @@
 package vfs
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
 
+	"opensvr/internal/config"
 	"opensvr/internal/metrics"
 )
 
@@ -73,5 +75,48 @@ func TestChinesePathRoundTrip(t *testing.T) {
 	// 确认落盘到真实的中文目录
 	if _, err := os.Stat(filepath.Join(root, "当前开局", "固件", "版本补丁.bin")); err != nil {
 		t.Fatalf("中文文件未落盘: %v", err)
+	}
+}
+
+func TestPermsEnforced(t *testing.T) {
+	v, _ := New(t.TempDir())
+	fs := v.Fs()
+	// 先用默认全权限建一个文件与目录
+	f, _ := fs.Create("a.bin")
+	f.Write([]byte("x"))
+	f.Close()
+	if err := fs.Mkdir("d", 0755); err != nil {
+		t.Fatalf("默认应可建目录: %v", err)
+	}
+
+	// 关闭 写/新建/删除/改名 权限，只留 读/列目录
+	v.SetPerms(config.Perms{Read: true, List: true})
+
+	if _, err := fs.Create("b.bin"); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("禁写后 Create 应权限拒绝, got %v", err)
+	}
+	if _, err := fs.OpenFile("c.bin", os.O_CREATE|os.O_WRONLY, 0644); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("禁写后 OpenFile(写) 应权限拒绝, got %v", err)
+	}
+	if err := fs.Mkdir("d2", 0755); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("禁新建后 Mkdir 应权限拒绝, got %v", err)
+	}
+	if err := fs.Remove("a.bin"); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("禁删除后 Remove 应权限拒绝, got %v", err)
+	}
+	if err := fs.Rename("a.bin", "a2.bin"); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("禁改名后 Rename 应权限拒绝, got %v", err)
+	}
+	// 读仍应允许
+	if rf, err := fs.Open("a.bin"); err != nil {
+		t.Fatalf("读权限仍在, Open 应成功: %v", err)
+	} else {
+		rf.Close()
+	}
+
+	// 关闭读权限后，打开文件读应被拒
+	v.SetPerms(config.Perms{List: true})
+	if _, err := fs.Open("a.bin"); !errors.Is(err, os.ErrPermission) {
+		t.Fatalf("禁读后 Open 文件应权限拒绝, got %v", err)
 	}
 }
