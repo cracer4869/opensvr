@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>opensvr 三协议开局服务端</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>opensvr · 三协议便携开局服务端</h1>
+    <span class="sub">FTP / SFTP / TFTP · 本机管理页</span>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>协议服务</h2>
+      <div id="protos"></div>
+    </section>
+
+    <section class="card">
+      <h2>账号（明文）</h2>
+      <div class="creds">
+        <label>用户名 <input id="auth-user" type="text"></label>
+        <label>密码 <input id="auth-pass" type="text"></label>
+        <label class="chk"><input id="auth-anon" type="checkbox"> 允许匿名</label>
+        <button id="auth-save">保存账号</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>根目录</h2>
+      <div class="rootrow">
+        <input id="root-dir" type="text" placeholder="共享根目录路径">
+        <button id="root-save">设置根目录</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>本机网卡地址</h2>
+      <table id="nics">
+        <thead><tr><th>网卡</th><th>IP</th><th>CIDR</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <button id="fw-btn">一键放行防火墙（需管理员）</button>
+      <div id="fw-msg" class="msg"></div>
+    </section>
+
+    <section class="card">
+      <h2>吞吐性能</h2>
+      <div class="rates">
+        <span class="rate up">上行 <b id="rate-up">0 B/s</b></span>
+        <span class="rate down">下行 <b id="rate-down">0 B/s</b></span>
+      </div>
+      <canvas id="chart" width="600" height="180"></canvas>
+    </section>
+
+    <section class="card">
+      <h2>实时日志</h2>
+      <div id="log" class="log"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
