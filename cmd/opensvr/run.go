@@ -33,6 +33,17 @@ func run(cfgPath, baseDir string) (stop func(), url string, err error) {
 	}
 	url = w.URL()
 
+	// 自动拉起上次启用的协议（启动失败不阻断，错误经各协议 Status().Err 暴露到 Web 页）。
+	if cfg.FTP.Enabled {
+		_ = m.StartFTP()
+	}
+	if cfg.SFTP.Enabled {
+		_ = m.StartSFTP()
+	}
+	if cfg.TFTP.Enabled {
+		_ = m.StartTFTP()
+	}
+
 	// 每秒采样吞吐速率，供性能曲线使用。
 	stopCh := make(chan struct{})
 	go metrics.Start(stopCh)

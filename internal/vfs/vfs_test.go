@@ -44,3 +44,34 @@ func TestWriteReadCounts(t *testing.T) {
 	_ = os.WriteFile
 	_ = filepath.Join
 }
+
+func TestChinesePathRoundTrip(t *testing.T) {
+	root := t.TempDir()
+	v, _ := New(root)
+	fs := v.Fs()
+	if err := fs.MkdirAll("当前开局/固件", 0755); err != nil {
+		t.Fatalf("mkdir 中文目录: %v", err)
+	}
+	data := []byte("版本补丁内容")
+	f, err := fs.Create("当前开局/固件/版本补丁.bin")
+	if err != nil {
+		t.Fatalf("create 中文文件: %v", err)
+	}
+	f.Write(data)
+	f.Close()
+
+	rf, err := fs.Open("当前开局/固件/版本补丁.bin")
+	if err != nil {
+		t.Fatalf("open 中文文件: %v", err)
+	}
+	buf := make([]byte, len(data))
+	rf.Read(buf)
+	rf.Close()
+	if string(buf) != string(data) {
+		t.Fatalf("中文路径 roundtrip mismatch: %q", string(buf))
+	}
+	// 确认落盘到真实的中文目录
+	if _, err := os.Stat(filepath.Join(root, "当前开局", "固件", "版本补丁.bin")); err != nil {
+		t.Fatalf("中文文件未落盘: %v", err)
+	}
+}

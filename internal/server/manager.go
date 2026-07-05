@@ -29,6 +29,8 @@ type Manager struct {
 	cfg         *config.Config
 	cfgPath     string
 	hostkeyPath string
+	baseDir     string
+	rootWarning string
 
 	v      *vfs.VFS
 	a      *auth.Store
@@ -39,9 +41,11 @@ type Manager struct {
 	tftp *tftpsrv.Server
 }
 
-// New 依据 cfg 构造 Manager。dir 为 config.yaml 与 hostkey 所在的基准目录。
+// New 依据 cfg 构造 Manager。dir 为 config.yaml 与 hostkey 所在的基准目录（通常为 exe 同级）。
+// 根目录经 config.ResolveRoot 解析（支持可移植默认/相对路径/换机回退）。
 func New(cfg *config.Config, dir string) (*Manager, error) {
-	v, err := vfs.New(cfg.RootDir)
+	resolvedRoot, rootWarning := config.ResolveRoot(cfg.RootDir, dir)
+	v, err := vfs.New(resolvedRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -55,6 +59,8 @@ func New(cfg *config.Config, dir string) (*Manager, error) {
 		cfg:         cfg,
 		cfgPath:     filepath.Join(dir, "config.yaml"),
 		hostkeyPath: hostkeyPath,
+		baseDir:     dir,
+		rootWarning: rootWarning,
 		v:           v,
 		a:           a,
 		signer:      signer,
@@ -148,14 +154,16 @@ func (m *Manager) StopTFTP() error {
 
 // ----- 配置变更 -----
 
-// SetRoot 切换根目录：更新 vfs、cfg 并持久化。
+// SetRoot 切换根目录：更新 vfs、cfg 并持久化。dir 支持绝对或相对（相对 baseDir）路径。
 func (m *Manager) SetRoot(dir string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	if err := m.v.SetRoot(dir); err != nil {
+	resolved, warning := config.ResolveRoot(dir, m.baseDir)
+	if err := m.v.SetRoot(resolved); err != nil {
 		return err
 	}
 	m.cfg.RootDir = dir
+	m.rootWarning = warning
 	return m.save()
 }
 
@@ -240,6 +248,16 @@ func (m *Manager) Config() *config.Config {
 
 // Auth 返回口令库，供 Web 展示明文账号。
 func (m *Manager) Auth() *auth.Store { return m.a }
+
+// ActualRoot 返回当前实际生效的根目录（已解析的绝对路径）。
+func (m *Manager) ActualRoot() string { return m.v.Root() }
+
+// RootWarning 返回根目录回退警告（无警告时为空）。
+func (m *Manager) RootWarning() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.rootWarning
+}
 
 // VFS 返回文件系统抽象。
 func (m *Manager) VFS() *vfs.VFS { return m.v }

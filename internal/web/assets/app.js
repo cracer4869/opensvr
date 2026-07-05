@@ -33,7 +33,18 @@ async function loadStatus() {
   renderProtos(s);
   renderAuth(s.auth);
   renderRoot(s.root);
+  renderRootWarning(s.root_warning);
   renderNics(s.nics || []);
+}
+
+function renderRootWarning(warn) {
+  const box = document.getElementById("root-warn");
+  if (warn) {
+    box.textContent = "⚠ " + warn;
+    box.style.display = "block";
+  } else {
+    box.style.display = "none";
+  }
 }
 
 function renderProtos(s) {

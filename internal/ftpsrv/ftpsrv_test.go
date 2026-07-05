@@ -79,6 +79,36 @@ func TestFTPActiveMode(t *testing.T) {
 	}
 }
 
+func TestFTPChinesePathRoundTrip(t *testing.T) {
+	s, addr := startTestServer(t)
+	defer s.Stop()
+	c, err := ftp.Dial(addr, ftp.DialWithTimeout(3*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.Login("admin", "admin"); err != nil {
+		t.Fatal(err)
+	}
+	// 中文子目录 + 中文文件名
+	if err := c.MakeDir("当前开局"); err != nil {
+		t.Fatal(err)
+	}
+	data := []byte("华为交换机固件")
+	if err := c.Stor("当前开局/版本补丁.bin", bytes.NewReader(data)); err != nil {
+		t.Fatal(err)
+	}
+	r, err := c.Retr("当前开局/版本补丁.bin")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := new(bytes.Buffer)
+	got.ReadFrom(r)
+	r.Close()
+	if !bytes.Equal(got.Bytes(), data) {
+		t.Fatalf("中文路径 roundtrip mismatch: %q", got.String())
+	}
+}
+
 func TestStatusReflectsLifecycle(t *testing.T) {
 	v, _ := vfs.New(t.TempDir())
 	a := auth.New(config.AuthCfg{User: "admin", Pass: "admin"})

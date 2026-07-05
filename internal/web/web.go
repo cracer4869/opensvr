@@ -78,11 +78,13 @@ func (w *Web) handleStatus(rw http.ResponseWriter, r *http.Request) {
 	user, pass, anon := w.m.Auth().Creds()
 
 	resp := map[string]any{
-		"ftp":  st["ftp"],
-		"sftp": st["sftp"],
-		"tftp": st["tftp"],
-		"root": cfg.RootDir,
-		"nics": netinfo.List(),
+		"ftp":          st["ftp"],
+		"sftp":         st["sftp"],
+		"tftp":         st["tftp"],
+		"root":         w.m.ActualRoot(),
+		"root_config":  cfg.RootDir,
+		"root_warning": w.m.RootWarning(),
+		"nics":         netinfo.List(),
 		"auth": map[string]any{
 			"user":      user,
 			"pass":      pass,

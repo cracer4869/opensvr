@@ -52,3 +52,49 @@ func TestLoadMissingReturnsDefault(t *testing.T) {
 	}
 	_ = os.Remove
 }
+
+func TestResolveRootEmptyUsesPortableDefault(t *testing.T) {
+	base := t.TempDir()
+	got, warn := ResolveRoot("", base)
+	want := filepath.Join(base, "开局文件")
+	if got != want {
+		t.Fatalf("resolved = %q, want %q", got, want)
+	}
+	if warn != "" {
+		t.Fatalf("unexpected warning: %q", warn)
+	}
+	if _, err := os.Stat(got); err != nil {
+		t.Fatalf("default dir not created: %v", err)
+	}
+}
+
+func TestResolveRootRelativeToBase(t *testing.T) {
+	base := t.TempDir()
+	got, warn := ResolveRoot("固件库", base)
+	want := filepath.Join(base, "固件库")
+	if got != want || warn != "" {
+		t.Fatalf("got=%q warn=%q, want %q/无警告", got, warn, want)
+	}
+}
+
+func TestResolveRootAbsoluteOK(t *testing.T) {
+	base := t.TempDir()
+	abs := filepath.Join(t.TempDir(), "当前开局")
+	got, warn := ResolveRoot(abs, base)
+	if got != abs || warn != "" {
+		t.Fatalf("got=%q warn=%q, want %q", got, warn, abs)
+	}
+}
+
+func TestResolveRootInvalidFallsBackWithWarning(t *testing.T) {
+	base := t.TempDir()
+	// 不存在的盘符，模拟换机后配置目录不可用
+	got, warn := ResolveRoot(`Z:\不存在的目录\x`, base)
+	want := filepath.Join(base, "开局文件")
+	if got != want {
+		t.Fatalf("fallback = %q, want %q", got, want)
+	}
+	if warn == "" {
+		t.Fatal("expected non-empty warning on fallback")
+	}
+}

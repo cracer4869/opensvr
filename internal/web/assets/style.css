@@ -119,3 +119,14 @@ canvas {
 .msg { font-size: 12px; margin-top: 8px; color: var(--muted); white-space: pre-wrap; }
 .msg.ok { color: var(--ok); }
 .msg.err { color: var(--err); }
+
+.warn {
+  background: #4a3a12;
+  color: #ffd97a;
+  border: 1px solid #7a5f1e;
+  border-radius: 6px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+  font-size: 14px;
+  line-height: 1.5;
+}
