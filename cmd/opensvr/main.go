@@ -32,8 +32,9 @@ func baseDir() string {
 
 // onReady 在托盘就绪后装配并启动服务，并建立菜单。
 func onReady() {
+	systray.SetIcon(iconICO)
 	systray.SetTitle("opensvr")
-	systray.SetTooltip("三协议便携开局服务端")
+	systray.SetTooltip("opensvr · 三协议开局服务端")
 
 	dir := baseDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
