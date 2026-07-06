@@ -3,8 +3,6 @@ package web
 import (
 	"encoding/json"
 	"net/http"
-	"os/exec"
-	"strings"
 
 	"opensvr/internal/config"
 	"opensvr/internal/sessions"
@@ -54,20 +52,4 @@ func (w *Web) handlePickDir(rw http.ResponseWriter, r *http.Request) {
 		"root":         w.m.ActualRoot(),
 		"root_warning": w.m.RootWarning(),
 	})
-}
-
-// pickFolder 调用 PowerShell 的 FolderBrowserDialog 弹出原生文件夹选择框，
-// 返回所选绝对路径（UTF-8）；用户取消时返回空字符串。
-func pickFolder() (string, error) {
-	const ps = `[Console]::OutputEncoding=[System.Text.Encoding]::UTF8;` +
-		`Add-Type -AssemblyName System.Windows.Forms;` +
-		`$d=New-Object System.Windows.Forms.FolderBrowserDialog;` +
-		`$d.Description='选择开局文件根目录';$d.ShowNewFolderButton=$true;` +
-		`if($d.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK){[Console]::Out.Write($d.SelectedPath)}`
-	cmd := exec.Command("powershell", "-NoProfile", "-STA", "-Command", ps)
-	out, err := cmd.Output()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(string(out)), nil
 }

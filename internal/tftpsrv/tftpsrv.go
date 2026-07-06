@@ -46,6 +46,10 @@ func (s *Server) readHandler(filename string, rf io.ReaderFrom) error {
 	if ot, ok := rf.(tftp.OutgoingTransfer); ok {
 		addr := ot.RemoteAddr()
 		sess.Remote = addr.String()
+		// 上报 tsize，便于设备显示下载进度并按大小校验完整性。
+		if fi, err := f.Stat(); err == nil {
+			ot.SetSize(fi.Size())
+		}
 	}
 	sessions.Add(sess)
 	defer sessions.Remove(sess.ID)

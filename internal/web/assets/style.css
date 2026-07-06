@@ -231,6 +231,16 @@ tr:last-child td { border-bottom: none; }
 /* ---- 权限 ---- */
 .perms { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; margin-bottom: 10px; }
 
+/* ---- SFTP 主机密钥 ---- */
+.sftpkeys { display: flex; flex-direction: column; gap: 8px; }
+.sftpkey { display: flex; align-items: center; gap: 10px; }
+.sftpkey .fp {
+  flex: 1; cursor: pointer; background: var(--plane); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; font-family: "Consolas", "Cascadia Mono", monospace;
+  font-size: 12px; color: var(--ink); word-break: break-all;
+}
+.sftpkey .fp:hover { border-color: var(--accent); }
+
 ::-webkit-scrollbar { width: 10px; height: 10px; }
 ::-webkit-scrollbar-thumb { background: var(--baseline); border-radius: 6px; border: 2px solid var(--surface); }
 ::-webkit-scrollbar-track { background: transparent; }

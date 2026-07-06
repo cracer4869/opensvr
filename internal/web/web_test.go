@@ -190,3 +190,35 @@ func TestSessionsEndpoint(t *testing.T) {
 		t.Fatalf("sessions not a json array: %v", err)
 	}
 }
+
+func TestSFTPInfoEndpoint(t *testing.T) {
+	cfg := config.Default()
+	cfg.RootDir = t.TempDir()
+	m, _ := server.New(cfg, t.TempDir())
+	w := New(m)
+	rec := httptest.NewRecorder()
+	w.handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/sftpinfo", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("sftpinfo code=%d", rec.Code)
+	}
+	var body struct {
+		Fingerprints []string `json:"fingerprints"`
+		KeyTypes     []string `json:"key_types"`
+		KEX          []string `json:"kex"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	// 应有 ed25519+rsa 两把主机密钥指纹与非空算法集，供前端展示核对。
+	if len(body.Fingerprints) != 2 || len(body.KeyTypes) != 2 {
+		t.Fatalf("应返回两把主机密钥: fp=%d types=%d", len(body.Fingerprints), len(body.KeyTypes))
+	}
+	if len(body.KEX) == 0 {
+		t.Fatal("sftpinfo 缺少兼容算法集")
+	}
+	for _, fp := range body.Fingerprints {
+		if !strings.HasPrefix(fp, "SHA256:") {
+			t.Fatalf("指纹格式应为 SHA256:xxx，实得 %q", fp)
+		}
+	}
+}

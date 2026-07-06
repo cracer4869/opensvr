@@ -38,6 +38,7 @@ func (w *Web) handler() *http.ServeMux {
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 
 	mux.HandleFunc("/api/status", w.handleStatus)
+	mux.HandleFunc("/api/sftpinfo", w.handleSFTPInfo)
 	mux.HandleFunc("/api/proto/", w.handleProto)
 	mux.HandleFunc("/api/root", w.handleRoot)
 	mux.HandleFunc("/api/pickdir", w.handlePickDir)
@@ -104,7 +105,11 @@ func (w *Web) handleStatus(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, resp)
 }
 
-// handleProto 处理 /api/proto/{ftp|sftp|tftp}/{start|stop}
+// handleSFTPInfo 返回 SFTP 主机密钥指纹与密钥类型（供设备首次连接核对 known_hosts），
+// 以及启用的兼容算法集。主机密钥重启后不变，前端拉一次即可。
+func (w *Web) handleSFTPInfo(rw http.ResponseWriter, r *http.Request) {
+	writeJSON(rw, w.m.SFTPInfo())
+}
 func (w *Web) handleProto(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)

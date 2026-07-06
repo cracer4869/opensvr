@@ -126,6 +126,33 @@ function renderNics(nics) {
   }
 }
 
+/* ==================== SFTP 主机密钥指纹 ==================== */
+// 主机密钥重启不变，启动时拉一次即可，供设备首连核对 known_hosts。
+async function loadSFTPInfo() {
+  let info;
+  try { info = await (await fetch("/api/sftpinfo")).json(); } catch { return; }
+  const box = document.getElementById("sftp-keys");
+  const empty = document.getElementById("sftp-keys-empty");
+  const fps = info.fingerprints || [];
+  const types = info.key_types || [];
+  box.innerHTML = "";
+  empty.hidden = fps.length > 0;
+  for (let i = 0; i < fps.length; i++) {
+    const fp = fps[i], kt = types[i] || "";
+    const row = el("div", "sftpkey");
+    row.appendChild(el("span", "pill muted", kt));
+    const fpEl = el("code", "fp", fp);
+    fpEl.title = "点击复制";
+    fpEl.onclick = () => {
+      navigator.clipboard && navigator.clipboard.writeText(fp);
+      const old = fpEl.textContent; fpEl.textContent = "已复制 ✓";
+      setTimeout(() => fpEl.textContent = old, 900);
+    };
+    row.appendChild(fpEl);
+    box.appendChild(row);
+  }
+}
+
 /* ==================== 账号 / 权限 / 根目录 / 防火墙 / 全局启停 ==================== */
 document.getElementById("auth-save").onclick = async () => {
   await postJSON("/api/auth", {
@@ -344,6 +371,7 @@ window.addEventListener("resize", drawChart);
 
 /* ==================== 启动 ==================== */
 loadStatus();
+loadSFTPInfo();
 loadSessions();
 startLog();
 startMetrics();

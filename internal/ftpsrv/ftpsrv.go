@@ -51,6 +51,10 @@ type driver struct {
 func (d *driver) GetSettings() (*ftpserver.Settings, error) {
 	st := &ftpserver.Settings{
 		ListenAddr: fmt.Sprintf("0.0.0.0:%d", d.s.port),
+		// 二进制安全：默认按二进制(TYPE I)传输，并彻底关闭 ASCII 行尾(CRLF/LF)转换。
+		// 固件/补丁等二进制文件若被 ASCII 模式转换会损坏，这里全程按原样字节收发。
+		DefaultTransferType:    ftpserver.TransferTypeBinary,
+		DisableASCIIConversion: true,
 	}
 	if d.s.passive[1] > 0 {
 		st.PassiveTransferPortRange = ftpserver.PortRange{Start: d.s.passive[0], End: d.s.passive[1]}

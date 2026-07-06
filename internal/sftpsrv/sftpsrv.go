@@ -23,10 +23,10 @@ type Status struct {
 
 // Server SFTP 服务端：ssh 监听 + sftp RequestServer，文件系统囚笼在 vfs.root。
 type Server struct {
-	v      *vfs.VFS
-	a      *auth.Store
-	signer ssh.Signer
-	port   int
+	v       *vfs.VFS
+	a       *auth.Store
+	signers []ssh.Signer // 主机密钥，可多把（如 ed25519 + RSA）以适配不同设备
+	port    int
 
 	mu        sync.Mutex
 	ln        net.Listener
@@ -36,8 +36,37 @@ type Server struct {
 }
 
 // New 构造 SFTP 服务端。port 为 0 时使用随机端口（便于测试）。
-func New(v *vfs.VFS, a *auth.Store, signer ssh.Signer, port int) *Server {
-	return &Server{v: v, a: a, signer: signer, port: port}
+// signers 为主机密钥列表，通常传入 ed25519 与 RSA 各一把以最大化设备兼容性。
+func New(v *vfs.VFS, a *auth.Store, port int, signers ...ssh.Signer) *Server {
+	return &Server{v: v, a: a, signers: signers, port: port}
+}
+
+// 兼容算法集：在 x/crypto 默认的安全算法之外，额外启用一批老旧但网络设备
+// (华为/H3C/思科/锐捷等) SSH 客户端仍在用的算法，以最大化 SFTP 握手兼容性。
+// 现代客户端仍会优先协商列表前部的强算法，老设备则可回落到后部的兼容算法。
+var (
+	compatKEX = []string{
+		ssh.KeyExchangeCurve25519,
+		ssh.KeyExchangeECDHP256, ssh.KeyExchangeECDHP384, ssh.KeyExchangeECDHP521,
+		ssh.KeyExchangeDH14SHA256, ssh.KeyExchangeDH16SHA512, ssh.KeyExchangeDHGEXSHA256,
+		ssh.InsecureKeyExchangeDH14SHA1, ssh.InsecureKeyExchangeDHGEXSHA1, ssh.InsecureKeyExchangeDH1SHA1,
+	}
+	compatCiphers = []string{
+		ssh.CipherAES128GCM, ssh.CipherAES256GCM, ssh.CipherChaCha20Poly1305,
+		ssh.CipherAES128CTR, ssh.CipherAES192CTR, ssh.CipherAES256CTR,
+		ssh.InsecureCipherAES128CBC, ssh.InsecureCipherTripleDESCBC,
+	}
+	compatMACs = []string{
+		ssh.HMACSHA256ETM, ssh.HMACSHA512ETM,
+		ssh.HMACSHA256, ssh.HMACSHA512, ssh.HMACSHA1, ssh.InsecureHMACSHA196,
+	}
+)
+
+// CompatAlgorithms 返回启用的兼容算法集（各返回副本），供 Web 页展示与核对。
+func CompatAlgorithms() (kex, ciphers, macs []string) {
+	return append([]string(nil), compatKEX...),
+		append([]string(nil), compatCiphers...),
+		append([]string(nil), compatMACs...)
 }
 
 // Start 开始监听并接受连接。
@@ -48,6 +77,12 @@ func (s *Server) Start() error {
 		return nil
 	}
 	sc := &ssh.ServerConfig{
+		// 显式放宽算法集，兼容老旧网络设备的 SSH 客户端。
+		Config: ssh.Config{
+			KeyExchanges: compatKEX,
+			Ciphers:      compatCiphers,
+			MACs:         compatMACs,
+		},
 		PasswordCallback: func(c ssh.ConnMetadata, pass []byte) (*ssh.Permissions, error) {
 			ok, _ := s.a.Authenticate(c.User(), string(pass))
 			if !ok {
@@ -58,7 +93,10 @@ func (s *Server) Start() error {
 			return &ssh.Permissions{}, nil
 		},
 	}
-	sc.AddHostKey(s.signer)
+	// 加入全部主机密钥（ed25519 + RSA）：设备按自身支持的类型自行选择。
+	for _, sg := range s.signers {
+		sc.AddHostKey(sg)
+	}
 
 	ln, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", s.port))
 	if err != nil {

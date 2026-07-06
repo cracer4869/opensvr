@@ -32,9 +32,9 @@ type Manager struct {
 	baseDir     string
 	rootWarning string
 
-	v      *vfs.VFS
-	a      *auth.Store
-	signer ssh.Signer
+	v       *vfs.VFS
+	a       *auth.Store
+	signers []ssh.Signer
 
 	ftp  *ftpsrv.Server
 	sftp *sftpsrv.Server
@@ -56,6 +56,11 @@ func New(cfg *config.Config, dir string) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
+	// 额外准备一把 RSA 主机密钥兜底老设备（只认 ssh-rsa/rsa-sha2 的客户端）。
+	rsaSigner, err := hostkey.LoadOrCreateRSA(filepath.Join(dir, "hostkey_rsa"))
+	if err != nil {
+		return nil, err
+	}
 	m := &Manager{
 		cfg:         cfg,
 		cfgPath:     filepath.Join(dir, "config.yaml"),
@@ -64,7 +69,7 @@ func New(cfg *config.Config, dir string) (*Manager, error) {
 		rootWarning: rootWarning,
 		v:           v,
 		a:           a,
-		signer:      signer,
+		signers:     []ssh.Signer{signer, rsaSigner},
 	}
 	m.buildFTP()
 	m.buildSFTP()
@@ -78,7 +83,7 @@ func (m *Manager) buildFTP() {
 }
 
 func (m *Manager) buildSFTP() {
-	m.sftp = sftpsrv.New(m.v, m.a, m.signer, m.cfg.SFTP.Port)
+	m.sftp = sftpsrv.New(m.v, m.a, m.cfg.SFTP.Port, m.signers...)
 }
 
 func (m *Manager) buildTFTP() {
@@ -261,6 +266,29 @@ func (m *Manager) Auth() *auth.Store { return m.a }
 
 // ActualRoot 返回当前实际生效的根目录（已解析的绝对路径）。
 func (m *Manager) ActualRoot() string { return m.v.Root() }
+
+// SFTPInfo 汇总 SFTP 的主机密钥指纹与启用算法，供 Web 展示与设备核对。
+type SFTPInfo struct {
+	Fingerprints []string `json:"fingerprints"` // 各主机密钥的 SHA256 指纹
+	KeyTypes     []string `json:"key_types"`    // 主机密钥类型，如 ssh-ed25519 / ssh-rsa
+	KEX          []string `json:"kex"`          // 启用的密钥交换算法
+	Ciphers      []string `json:"ciphers"`      // 启用的加密算法
+	MACs         []string `json:"macs"`         // 启用的消息认证算法
+}
+
+// SFTPInfo 返回当前 SFTP 主机密钥指纹与算法集合。
+func (m *Manager) SFTPInfo() SFTPInfo {
+	m.mu.Lock()
+	signers := m.signers
+	m.mu.Unlock()
+	var fps, kts []string
+	for _, s := range signers {
+		fps = append(fps, hostkey.Fingerprint(s))
+		kts = append(kts, s.PublicKey().Type())
+	}
+	kex, ciphers, macs := sftpsrv.CompatAlgorithms()
+	return SFTPInfo{Fingerprints: fps, KeyTypes: kts, KEX: kex, Ciphers: ciphers, MACs: macs}
+}
 
 // RootWarning 返回根目录回退警告（无警告时为空）。
 func (m *Manager) RootWarning() string {
