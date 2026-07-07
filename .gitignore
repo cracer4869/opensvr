@@ -1,4 +1,5 @@
 opensvr.exe
 /data/
-hostkey
+# 仅忽略根目录下的主机私钥(hostkey / hostkey_rsa 等);勿用裸 hostkey,否则会误伤 internal/hostkey 源码包
+/hostkey*
 config.yaml
