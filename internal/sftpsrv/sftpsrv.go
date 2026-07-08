@@ -150,21 +150,38 @@ func (s *Server) handleConn(c net.Conn, sc *ssh.ServerConfig) {
 		if err != nil {
 			continue
 		}
-		// 只接受 sftp subsystem 请求。
-		go func(in <-chan *ssh.Request) {
-			for r := range in {
-				ok := r.Type == "subsystem" && len(r.Payload) >= 4 && string(r.Payload[4:]) == "sftp"
-				r.Reply(ok, nil)
-			}
-		}(requests)
+		go s.serveChannel(ch, requests, sessID)
+	}
+}
 
-		// Handlers 走 vfs.Fs()（afero，已囚笼），随机读写计入 metrics 与会话。
-		h := newHandlers(s.v, sessID)
-		srv := sftp.NewRequestServer(ch, h)
-		go func(rs *sftp.RequestServer, channel ssh.Channel) {
-			_ = rs.Serve()
-			channel.Close()
-		}(srv, ch)
+// serveChannel 分发单个会话 channel 的请求：
+//   - subsystem "sftp" -> 起 sftp.RequestServer（原有 SFTP 行为）
+//   - exec "scp ..."   -> 起 SCP handler（覆盖只走 SCP 的思科/华为/H3C 老设备）
+//   - 其余             -> 拒绝
+//
+// 请求循环持续 drain 直到对端关闭 channel；实际传输在各自 goroutine 内进行。
+func (s *Server) serveChannel(ch ssh.Channel, in <-chan *ssh.Request, sessID string) {
+	for r := range in {
+		switch r.Type {
+		case "subsystem":
+			if len(r.Payload) >= 4 && string(r.Payload[4:]) == "sftp" {
+				r.Reply(true, nil)
+				// Handlers 走 vfs.Fs()（afero，已囚笼），读写计入 metrics 与会话。
+				h := newHandlers(s.v, sessID)
+				go func() { _ = sftp.NewRequestServer(ch, h).Serve(); ch.Close() }()
+				continue
+			}
+			r.Reply(false, nil)
+		case "exec":
+			if cmd := scpCommand(r.Payload); cmd != "" {
+				r.Reply(true, nil)
+				go s.handleSCP(ch, cmd, sessID)
+				continue
+			}
+			r.Reply(false, nil)
+		default:
+			r.Reply(false, nil)
+		}
 	}
 }
 
