@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -105,4 +106,69 @@ func readCRecord(t *testing.T, br *bufio.Reader) (int64, string) {
 		t.Fatalf("非法文件头长度: %q", line)
 	}
 	return size, parts[2]
+}
+
+// TestSCPDownload 驱动服务端 source（scp -f，设备下载）。
+func TestSCPDownload(t *testing.T) {
+	conn, root := startSCPServer(t)
+	content := []byte("device-image-data-镜像")
+	if err := os.WriteFile(filepath.Join(root, "img.bin"), content, 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	sess, err := conn.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Close()
+	w, _ := sess.StdinPipe()
+	r, _ := sess.StdoutPipe()
+	if err := sess.Start("scp -f /img.bin"); err != nil {
+		t.Fatal(err)
+	}
+	br := bufio.NewReader(r)
+
+	w.Write([]byte{0})               // 客户端就绪
+	size, name := readCRecord(t, br) // 读文件头
+	if name != "img.bin" {
+		t.Fatalf("文件名应为 img.bin, 实得 %q", name)
+	}
+	w.Write([]byte{0}) // 接受文件头
+	data := make([]byte, size)
+	if _, err := io.ReadFull(br, data); err != nil {
+		t.Fatal(err)
+	}
+	mustReadZero(t, br) // 结尾 0x00
+	w.Write([]byte{0})  // 最终 ack
+	sess.Wait()
+
+	if !bytes.Equal(data, content) {
+		t.Fatalf("scp 下载内容不一致: %q", string(data))
+	}
+}
+
+// TestSCPDownloadMissingRejected 校验下载不存在的文件时服务端回 0x02 致命错误。
+func TestSCPDownloadMissingRejected(t *testing.T) {
+	conn, _ := startSCPServer(t)
+	sess, err := conn.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Close()
+	w, _ := sess.StdinPipe()
+	r, _ := sess.StdoutPipe()
+	if err := sess.Start("scp -f /nonexistent.bin"); err != nil {
+		t.Fatal(err)
+	}
+	br := bufio.NewReader(r)
+
+	w.Write([]byte{0}) // 客户端就绪
+	b, err := br.ReadByte()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if b != 2 { // 0x02 致命错误
+		t.Fatalf("缺失文件应返回 0x02 错误字节, 实得 0x%02x", b)
+	}
+	sess.Wait()
 }

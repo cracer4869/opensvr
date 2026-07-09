@@ -69,6 +69,8 @@ sftp <PC_IP>
 ```
 copy tftp: flash:     # 按提示输入 <PC_IP> 与文件名
 copy ftp://admin:admin@<PC_IP>/<file> flash:
+copy scp://admin:admin@<PC_IP>/<file> flash:   # SCP：从 PC 下载
+copy flash:<file> scp://admin:admin@<PC_IP>/   # SCP：上传到 PC
 ```
 
 ## 设备兼容性（针对老旧网络设备）
@@ -85,7 +87,7 @@ copy ftp://admin:admin@<PC_IP>/<file> flash:
 1. **传不上/连不上**：先关掉或放行 Windows 防火墙（公用网络），或点页面"一键放行"。**这是最常见原因。**
 2. **IP 不通**：机房通常无 DHCP，把网卡设成与设备同网段静态 IP，先 `ping` 通。
 3. **SFTP 端口冲突**：本机若开了 Windows OpenSSH Server 会占用 22，改 SFTP 端口即可。
-4. **老设备只认 SCP**：本工具提供标准 SFTP；个别只认 SCP 的老设备请改用 TFTP/FTP。
+4. **老设备只认 SCP**：已支持 SCP（单文件上传/下载），思科 `copy scp:`、部分华为/H3C 老机型可直接用；暂不支持目录递归（`-r`）。
 5. **固件名不符**：设备命令里的文件名要和根目录里的实际文件名完全一致。
 
 ## 从源码构建
