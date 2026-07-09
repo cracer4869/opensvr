@@ -93,7 +93,11 @@
 
     <!-- 网卡 -->
     <section class="card span-2">
-      <div class="card-head"><h2>本机网卡地址</h2><span class="hint">点 IP 复制 · 选与设备同网段的那个</span></div>
+      <div class="card-head">
+        <h2>本机网卡地址</h2>
+        <button id="nic-refresh" class="btn sm ghost" title="立即重新扫描网卡">⟳ 刷新网卡</button>
+      </div>
+      <div class="hint">所有网卡同时监听 · 设备用任意<b>同网段</b> IP 都能连 · 点 IP 复制</div>
       <table class="nic-table">
         <thead><tr><th>网卡</th><th>IP</th><th>CIDR</th></tr></thead>
         <tbody id="nics"></tbody>

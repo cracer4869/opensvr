@@ -158,9 +158,6 @@ tr:last-child td { border-bottom: none; }
 .num { text-align: right; font-variant-numeric: tabular-nums; }
 .nic-table td:nth-child(2) { color: var(--accent); cursor: pointer; font-variant-numeric: tabular-nums; }
 .nic-table td:nth-child(2):hover { text-decoration: underline; }
-.nic-reco td { background: rgba(46, 160, 67, 0.10); }
-.nic-reco td:first-child { font-weight: 600; }
-.reco-badge { margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #2ea043; color: #fff; font-size: 11px; font-weight: 600; cursor: default; }
 .fw-ok { color: #2ea043; }
 .fw-warn { color: #d29922; }
 
