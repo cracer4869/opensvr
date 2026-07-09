@@ -1,13 +1,16 @@
 package server
 
 import (
+	"fmt"
 	"path/filepath"
+	"strconv"
 	"sync"
 
 	"golang.org/x/crypto/ssh"
 
 	"opensvr/internal/auth"
 	"opensvr/internal/config"
+	"opensvr/internal/firewall"
 	"opensvr/internal/ftpsrv"
 	"opensvr/internal/hostkey"
 	"opensvr/internal/sftpsrv"
@@ -35,6 +38,8 @@ type Manager struct {
 	v       *vfs.VFS
 	a       *auth.Store
 	signers []ssh.Signer
+
+	fw firewall.Controller // 防火墙控制器，随协议启停自动放行/清理（默认 Noop）
 
 	ftp  *ftpsrv.Server
 	sftp *sftpsrv.Server
@@ -70,6 +75,7 @@ func New(cfg *config.Config, dir string) (*Manager, error) {
 		v:           v,
 		a:           a,
 		signers:     []ssh.Signer{signer, rsaSigner},
+		fw:          firewall.Noop{},
 	}
 	m.buildFTP()
 	m.buildSFTP()
@@ -100,6 +106,7 @@ func (m *Manager) StartFTP() error {
 		return err
 	}
 	m.cfg.FTP.Enabled = true
+	m.fw.Allow(m.ftpRules())
 	return m.save()
 }
 
@@ -111,6 +118,7 @@ func (m *Manager) StopFTP() error {
 		return err
 	}
 	m.cfg.FTP.Enabled = false
+	m.fw.Remove(ruleNames(m.ftpRules()))
 	return m.save()
 }
 
@@ -122,6 +130,7 @@ func (m *Manager) StartSFTP() error {
 		return err
 	}
 	m.cfg.SFTP.Enabled = true
+	m.fw.Allow(m.sftpRules())
 	return m.save()
 }
 
@@ -133,6 +142,7 @@ func (m *Manager) StopSFTP() error {
 		return err
 	}
 	m.cfg.SFTP.Enabled = false
+	m.fw.Remove(ruleNames(m.sftpRules()))
 	return m.save()
 }
 
@@ -144,6 +154,7 @@ func (m *Manager) StartTFTP() error {
 		return err
 	}
 	m.cfg.TFTP.Enabled = true
+	m.fw.Allow(m.tftpRules())
 	return m.save()
 }
 
@@ -155,7 +166,63 @@ func (m *Manager) StopTFTP() error {
 		return err
 	}
 	m.cfg.TFTP.Enabled = false
+	m.fw.Remove(ruleNames(m.tftpRules()))
 	return m.save()
+}
+
+// ----- 防火墙 -----
+
+// SetFirewall 注入防火墙控制器（提权时注入 Netsh，否则保持 Noop）。
+func (m *Manager) SetFirewall(c firewall.Controller) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.fw = c
+}
+
+// RemoveFirewallRules 清理本工具添加的全部放行规则（退出时调用）。
+func (m *Manager) RemoveFirewallRules() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.fw.Remove(allRuleNames())
+}
+
+// ftpRules 返回 FTP 需放行的规则：控制端口 + 被动数据段（调用方需持锁）。
+func (m *Manager) ftpRules() []firewall.Rule {
+	rules := []firewall.Rule{
+		{Name: "opensvr-ftp", Proto: "TCP", Port: strconv.Itoa(m.cfg.FTP.Port)},
+	}
+	if m.cfg.PassiveRange[1] > 0 {
+		rules = append(rules, firewall.Rule{
+			Name:  "opensvr-ftp-passive",
+			Proto: "TCP",
+			Port:  fmt.Sprintf("%d-%d", m.cfg.PassiveRange[0], m.cfg.PassiveRange[1]),
+		})
+	}
+	return rules
+}
+
+// sftpRules 返回 SFTP 需放行的规则（调用方需持锁）。
+func (m *Manager) sftpRules() []firewall.Rule {
+	return []firewall.Rule{{Name: "opensvr-sftp", Proto: "TCP", Port: strconv.Itoa(m.cfg.SFTP.Port)}}
+}
+
+// tftpRules 返回 TFTP 需放行的规则（调用方需持锁）。
+func (m *Manager) tftpRules() []firewall.Rule {
+	return []firewall.Rule{{Name: "opensvr-tftp", Proto: "UDP", Port: strconv.Itoa(m.cfg.TFTP.Port)}}
+}
+
+// ruleNames 提取规则名切片。
+func ruleNames(rules []firewall.Rule) []string {
+	names := make([]string, len(rules))
+	for i, r := range rules {
+		names[i] = r.Name
+	}
+	return names
+}
+
+// allRuleNames 返回本工具可能添加的全部规则名，供退出清理。
+func allRuleNames() []string {
+	return []string{"opensvr-ftp", "opensvr-ftp-passive", "opensvr-sftp", "opensvr-tftp"}
 }
 
 // ----- 配置变更 -----

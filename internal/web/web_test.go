@@ -175,6 +175,20 @@ func TestStatusIncludesPerms(t *testing.T) {
 	}
 }
 
+func TestStatusIncludesElevated(t *testing.T) {
+	cfg := config.Default()
+	cfg.RootDir = t.TempDir()
+	m, _ := server.New(cfg, t.TempDir())
+	w := New(m)
+	rec := httptest.NewRecorder()
+	w.handler().ServeHTTP(rec, httptest.NewRequest("GET", "/api/status", nil))
+	var body map[string]any
+	json.Unmarshal(rec.Body.Bytes(), &body)
+	if _, ok := body["elevated"].(bool); !ok {
+		t.Fatalf("status 应含布尔字段 elevated, 实得 %v", body["elevated"])
+	}
+}
+
 func TestSessionsEndpoint(t *testing.T) {
 	cfg := config.Default()
 	cfg.RootDir = t.TempDir()

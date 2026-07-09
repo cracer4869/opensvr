@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"opensvr/internal/config"
+	"opensvr/internal/firewall"
 	"opensvr/internal/metrics"
 	"opensvr/internal/server"
 	"opensvr/internal/web"
@@ -25,6 +26,11 @@ func run(cfgPath, baseDir string) (stop func(), url string, err error) {
 	m, err := server.New(cfg, baseDir)
 	if err != nil {
 		return nil, "", err
+	}
+
+	// 以管理员运行时注入 netsh 控制器：协议启停自动放行/清理防火墙。
+	if firewall.IsElevated() {
+		m.SetFirewall(firewall.Netsh{})
 	}
 
 	w := web.New(m)
@@ -55,7 +61,10 @@ func run(cfgPath, baseDir string) (stop func(), url string, err error) {
 
 	var once sync.Once
 	stop = func() {
-		once.Do(func() { close(stopCh) })
+		once.Do(func() {
+			close(stopCh)
+			m.RemoveFirewallRules() // 退出时清理本工具添加的放行规则
+		})
 	}
 	return stop, url, nil
 }

@@ -44,6 +44,20 @@ async function loadStatus() {
   renderPerms(s.perms || {});
   renderWarn(s.root_warning);
   renderNics(s.nics || []);
+  renderFirewall(s.elevated);
+}
+
+// renderFirewall 依据是否提权显示防火墙自动放行提示。
+function renderFirewall(elevated) {
+  const box = document.getElementById("fw-hint");
+  if (!box) return;
+  if (elevated) {
+    box.className = "hint fw-ok";
+    box.textContent = "✓ 已以管理员运行：协议启动自动放行防火墙、退出自动清理";
+  } else {
+    box.className = "hint fw-warn";
+    box.textContent = "以管理员身份运行本程序可自动放行防火墙（否则请点下方按钮或手动放行）";
+  }
 }
 
 function renderWarn(w) {

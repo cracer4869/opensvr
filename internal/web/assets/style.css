@@ -161,6 +161,8 @@ tr:last-child td { border-bottom: none; }
 .nic-reco td { background: rgba(46, 160, 67, 0.10); }
 .nic-reco td:first-child { font-weight: 600; }
 .reco-badge { margin-left: 8px; padding: 1px 7px; border-radius: 999px; background: #2ea043; color: #fff; font-size: 11px; font-weight: 600; cursor: default; }
+.fw-ok { color: #2ea043; }
+.fw-warn { color: #d29922; }
 
 /* ---- 状态药丸 ---- */
 .pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }

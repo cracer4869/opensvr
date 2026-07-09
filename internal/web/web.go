@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"time"
 
+	"opensvr/internal/firewall"
 	"opensvr/internal/logbus"
 	"opensvr/internal/metrics"
 	"opensvr/internal/netinfo"
@@ -89,6 +90,7 @@ func (w *Web) handleStatus(rw http.ResponseWriter, r *http.Request) {
 		"root_warning": w.m.RootWarning(),
 		"perms":        cfg.Perms,
 		"nics":         netinfo.List(),
+		"elevated":     firewall.IsElevated(),
 		"auth": map[string]any{
 			"user":      user,
 			"pass":      pass,
