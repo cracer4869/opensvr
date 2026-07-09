@@ -115,11 +115,13 @@ function renderNics(nics) {
   }
   for (const n of nics) {
     const ip = n.IP || n.ip || "";
-    const tr = el("tr");
+    const reco = n.Recommended || n.recommended;
+    const tr = el("tr", reco ? "nic-reco" : null);
     tr.appendChild(el("td", null, n.Name || n.name || ""));
     const ipTd = el("td", null, ip);
     ipTd.title = "点击复制";
     ipTd.onclick = () => { navigator.clipboard && navigator.clipboard.writeText(ip); ipTd.textContent = ip + " ✓"; setTimeout(() => ipTd.textContent = ip, 900); };
+    if (reco) ipTd.appendChild(el("span", "reco-badge", "设备连这个 →"));
     tr.appendChild(ipTd);
     tr.appendChild(el("td", null, n.CIDR || n.cidr || ""));
     tb.appendChild(tr);
