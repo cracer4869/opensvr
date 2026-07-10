@@ -98,3 +98,33 @@ func TestResolveRootInvalidFallsBackWithWarning(t *testing.T) {
 		t.Fatal("expected non-empty warning on fallback")
 	}
 }
+
+func TestLoadCorruptFallsBackToDefault(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(p, []byte("{{{ 这不是 yaml"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Load(p)
+	if err != nil {
+		t.Fatalf("损坏配置不应让 Load 失败: %v", err)
+	}
+	if got.Web.Port != 31944 {
+		t.Fatal("损坏配置应回退默认值")
+	}
+	if _, err := os.Stat(p + ".bad"); err != nil {
+		t.Fatalf("损坏配置应被备份为 .bad: %v", err)
+	}
+}
+
+func TestSaveAtomicLeavesNoTmp(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "config.yaml")
+	if err := Default().Save(p); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(p); err != nil {
+		t.Fatalf("config.yaml 未写出: %v", err)
+	}
+	if _, err := os.Stat(p + ".tmp"); !os.IsNotExist(err) {
+		t.Fatal("原子写不应留下 .tmp 残留")
+	}
+}

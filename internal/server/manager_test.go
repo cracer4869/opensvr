@@ -93,3 +93,26 @@ func TestFirewallAutoAllowOnStartStop(t *testing.T) {
 		t.Fatalf("StopFTP 应移除 opensvr-ftp 规则, removed=%v", fw.removed)
 	}
 }
+
+// TestSetPortRefreshesFirewall：运行中的协议改端口后应重新 Allow（新端口生效）。
+func TestSetPortRefreshesFirewall(t *testing.T) {
+	cfg := config.Default()
+	cfg.RootDir = t.TempDir()
+	cfg.FTP.Port = 0
+	m, err := New(cfg, t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fw := &fakeFW{}
+	m.SetFirewall(fw)
+	if err := m.StartFTP(); err != nil {
+		t.Fatal(err)
+	}
+	before := len(fw.allowed)
+	if err := m.SetPort("ftp", 0); err != nil { // 仍用随机端口，避免测试端口冲突
+		t.Fatal(err)
+	}
+	if len(fw.allowed) <= before {
+		t.Fatal("SetPort 后应重新放行防火墙规则")
+	}
+}

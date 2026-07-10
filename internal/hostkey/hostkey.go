@@ -6,9 +6,12 @@ import (
 	"crypto/rsa"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"os"
 
 	"golang.org/x/crypto/ssh"
+
+	"opensvr/internal/logbus"
 )
 
 // LoadOrCreate 加载指定路径的 ed25519 SFTP 主机私钥；缺失则生成并以 PEM 持久化。
@@ -31,12 +34,19 @@ func LoadOrCreateRSA(path string) (ssh.Signer, error) {
 
 // loadOrCreate 通用加载：文件存在则解析私钥；缺失则用 gen 生成并以 OpenSSH PEM 持久化。
 // 持久化保证主机密钥指纹跨重启稳定，设备不会反复弹"主机密钥已变更"告警。
+// 文件损坏（截断/篡改）时自愈：备份为 <path>.bad 后重新生成——指纹会变（设备端
+// 需重新确认主机密钥），但好过整个程序启动失败。
 func loadOrCreate(path string, gen func() (any, error)) (ssh.Signer, error) {
 	b, err := os.ReadFile(path)
 	if err == nil {
-		return ssh.ParsePrivateKey(b)
-	}
-	if !errors.Is(err, os.ErrNotExist) {
+		s, perr := ssh.ParsePrivateKey(b)
+		if perr == nil {
+			return s, nil
+		}
+		_ = os.Rename(path, path+".bad")
+		logbus.Emit(logbus.Event{Proto: "sftp", Action: "hostkey", OK: false,
+			Msg: fmt.Sprintf("主机密钥 %s 损坏(%v)，已备份为 .bad 并重新生成，指纹将变化", path, perr)})
+	} else if !errors.Is(err, os.ErrNotExist) {
 		return nil, err
 	}
 	priv, err := gen()

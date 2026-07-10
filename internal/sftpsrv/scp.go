@@ -13,7 +13,6 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"opensvr/internal/logbus"
-	"opensvr/internal/metrics"
 	"opensvr/internal/sessions"
 )
 
@@ -240,7 +239,8 @@ func scpDest(fs afero.Fs, target, name string) string {
 	return clean
 }
 
-// upCounter 顺序写计数（设备上传→上行），回填 metrics 与会话面板。
+// upCounter 顺序写计数（设备上传→上行），回填会话面板。
+// metrics 由底层 vfs 的 countingFile 统一计数，此处不再重复累加。
 type upCounter struct {
 	w    io.Writer
 	sess string
@@ -249,13 +249,13 @@ type upCounter struct {
 func (c *upCounter) Write(p []byte) (int, error) {
 	n, err := c.w.Write(p)
 	if n > 0 {
-		metrics.AddUp(int64(n))
 		sessions.AddBytes(c.sess, int64(n))
 	}
 	return n, err
 }
 
-// downCounter 顺序写计数（设备下载→下行），回填 metrics 与会话面板。
+// downCounter 顺序写计数（设备下载→下行），回填会话面板。
+// metrics 由读文件侧的 countingFile 统一计数，此处不再重复累加。
 type downCounter struct {
 	w    io.Writer
 	sess string
@@ -264,7 +264,6 @@ type downCounter struct {
 func (c *downCounter) Write(p []byte) (int, error) {
 	n, err := c.w.Write(p)
 	if n > 0 {
-		metrics.AddDown(int64(n))
 		sessions.AddBytes(c.sess, int64(n))
 	}
 	return n, err

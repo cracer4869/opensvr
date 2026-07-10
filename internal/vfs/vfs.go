@@ -101,6 +101,10 @@ func (c *countingFs) Open(name string) (afero.File, error) {
 func (c *countingFs) OpenFile(name string, flag int, perm os.FileMode) (afero.File, error) {
 	p := c.perms()
 	write := flag&(os.O_WRONLY|os.O_RDWR|os.O_CREATE|os.O_TRUNC|os.O_APPEND) != 0
+	// O_RDWR 兼具读意图：关闭"读"权限时不允许借读写模式读到内容。
+	if flag&os.O_RDWR != 0 && !p.Read {
+		return nil, permErr("read", name)
+	}
 	if write {
 		if !p.Write {
 			return nil, permErr("write", name)

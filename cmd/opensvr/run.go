@@ -1,7 +1,11 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"net/http"
 	"sync"
+	"time"
 
 	"opensvr/internal/config"
 	"opensvr/internal/firewall"
@@ -9,6 +13,10 @@ import (
 	"opensvr/internal/server"
 	"opensvr/internal/web"
 )
+
+// ErrAlreadyRunning 表示管理页端口已被另一个 opensvr 实例占用。
+// 此时返回的 url 指向已有实例的管理页，调用方应打开它并退出本进程。
+var ErrAlreadyRunning = errors.New("已有 opensvr 实例在运行")
 
 // run 装配所有模块并启动本地 Web 管理页，返回停止函数与管理页 URL。
 //
@@ -35,6 +43,16 @@ func run(cfgPath, baseDir string) (stop func(), url string, err error) {
 
 	w := web.New(m)
 	if err := w.Start(cfg.Web.Port); err != nil {
+		// 端口被占：探测占用者是否为另一个 opensvr 实例（其 /api/status 可达）。
+		// 是则返回其管理页地址，调用方打开后退出，避免双实例互相干扰。
+		existing := fmt.Sprintf("http://127.0.0.1:%d", cfg.Web.Port)
+		cli := &http.Client{Timeout: time.Second}
+		if resp, perr := cli.Get(existing + "/api/status"); perr == nil {
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				return nil, existing, ErrAlreadyRunning
+			}
+		}
 		return nil, "", err
 	}
 	url = w.URL()
@@ -63,7 +81,11 @@ func run(cfgPath, baseDir string) (stop func(), url string, err error) {
 	stop = func() {
 		once.Do(func() {
 			close(stopCh)
-			m.RemoveFirewallRules() // 退出时清理本工具添加的放行规则
+			// 优雅关闭：先停协议监听（不改动 Enabled 记忆，下次启动照常自动拉起），
+			// 再关管理页，最后清理本工具添加的防火墙放行规则。
+			m.StopAll()
+			_ = w.Stop()
+			m.RemoveFirewallRules()
 		})
 	}
 	return stop, url, nil

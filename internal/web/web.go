@@ -1,13 +1,16 @@
 package web
 
 import (
+	"context"
 	"embed"
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"net"
 	"net/http"
-	"os/exec"
-	"strconv"
+	"net/url"
+	"strings"
+	"sync/atomic"
 	"time"
 
 	"opensvr/internal/firewall"
@@ -22,9 +25,10 @@ var assetsFS embed.FS
 
 // Web 是本地管理页 HTTP 服务，聚合 server.Manager、netinfo、logbus、metrics。
 type Web struct {
-	m    *server.Manager
-	srv  *http.Server
-	port int
+	m       *server.Manager
+	srv     *http.Server
+	port    int
+	picking atomic.Bool // 目录选择框单飞标志：同一时刻只允许弹一个
 }
 
 // New 构造 Web。
@@ -53,15 +57,61 @@ func (w *Web) handler() *http.ServeMux {
 	return mux
 }
 
+// localHost 判定主机名是否为本机回环。
+func localHost(host string) bool {
+	return host == "127.0.0.1" || host == "localhost" || host == "::1"
+}
+
+// guard 是安全中间件：
+//   - 拒绝 Host 非本机回环的请求，阻断 DNS rebinding（恶意域名解析到 127.0.0.1 后
+//     读取 /api/status 中的明文口令）；
+//   - POST 要求 Origin 缺省（curl/同源 fetch）或同为本机回环，阻断本机浏览器里
+//     恶意网页的跨站表单/fetch 驱动管理接口（改根目录/改密码/开服务）。
+func guard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		host := r.Host
+		if h, _, err := net.SplitHostPort(r.Host); err == nil {
+			host = h
+		}
+		if !localHost(strings.Trim(host, "[]")) {
+			http.Error(rw, "forbidden host", http.StatusForbidden)
+			return
+		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			if o := r.Header.Get("Origin"); o != "" && o != "null" {
+				u, err := url.Parse(o)
+				if err != nil || !localHost(u.Hostname()) {
+					http.Error(rw, "forbidden origin", http.StatusForbidden)
+					return
+				}
+			}
+		}
+		next.ServeHTTP(rw, r)
+	})
+}
+
 // Start 在指定端口启动 HTTP 服务（绑定 127.0.0.1）。
+// 先同步 Listen 拿到绑定结果：端口被占（如已开着另一个 opensvr 实例）立即报错，
+// 而不是静默失败让托盘/浏览器指向别的进程。
 func (w *Web) Start(port int) error {
-	w.port = port
-	w.srv = &http.Server{
-		Addr:    fmt.Sprintf("127.0.0.1:%d", port),
-		Handler: w.handler(),
+	ln, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+	if err != nil {
+		return fmt.Errorf("管理页端口 %d 监听失败: %w", port, err)
 	}
-	go func() { _ = w.srv.ListenAndServe() }()
+	w.port = ln.Addr().(*net.TCPAddr).Port
+	w.srv = &http.Server{Handler: guard(w.handler())}
+	go func() { _ = w.srv.Serve(ln) }()
 	return nil
+}
+
+// Stop 优雅关闭 HTTP 服务（限时，超时后强制返回）。
+func (w *Web) Stop() error {
+	if w.srv == nil {
+		return nil
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	return w.srv.Shutdown(ctx)
 }
 
 // URL 返回管理页地址。
@@ -121,27 +171,21 @@ func (w *Web) handleProto(rw http.ResponseWriter, r *http.Request) {
 	proto, action := parts[0], parts[1]
 
 	var err error
-	switch proto {
-	case "ftp":
-		if action == "start" {
-			err = w.m.StartFTP()
-		} else {
-			err = w.m.StopFTP()
-		}
-	case "sftp":
-		if action == "start" {
-			err = w.m.StartSFTP()
-		} else {
-			err = w.m.StopSFTP()
-		}
-	case "tftp":
-		if action == "start" {
-			err = w.m.StartTFTP()
-		} else {
-			err = w.m.StopTFTP()
-		}
+	switch proto + "/" + action {
+	case "ftp/start":
+		err = w.m.StartFTP()
+	case "ftp/stop":
+		err = w.m.StopFTP()
+	case "sftp/start":
+		err = w.m.StartSFTP()
+	case "sftp/stop":
+		err = w.m.StopSFTP()
+	case "tftp/start":
+		err = w.m.StartTFTP()
+	case "tftp/stop":
+		err = w.m.StopTFTP()
 	default:
-		http.Error(rw, "unknown proto", http.StatusBadRequest)
+		http.Error(rw, "unknown proto/action", http.StatusBadRequest)
 		return
 	}
 	if err != nil {
@@ -212,62 +256,28 @@ func (w *Web) handleAuth(rw http.ResponseWriter, r *http.Request) {
 	writeJSON(rw, map[string]any{"ok": true})
 }
 
-// handleFirewall 调 netsh 加入站放行；失败返回错误文本。
+// handleFirewall 手动放行三协议端口：复用 firewall.Netsh 的幂等实现（先删后加，
+// 多次点击不累积重复规则），规则名与自动放行一致，退出清理时可一并删除。
 func (w *Web) handleFirewall(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	cfg := w.m.Config()
-	rules := []struct {
-		name  string
-		proto string
-		port  int
-	}{
-		{"opensvr-ftp", "TCP", cfg.FTP.Port},
-		{"opensvr-sftp", "TCP", cfg.SFTP.Port},
-		{"opensvr-tftp", "UDP", cfg.TFTP.Port},
-		{"opensvr-ftp-passive", "TCP", 0}, // 被动段单独处理
+	if !firewall.IsElevated() {
+		writeJSON(rw, map[string]any{"ok": false, "detail": []string{"需要以管理员身份运行才能修改防火墙规则"}})
+		return
 	}
+	rules := w.m.FirewallRules()
 	var msgs []string
-	var failed bool
-	for _, ru := range rules {
-		if ru.port == 0 {
-			continue
-		}
-		out, err := runNetsh(ru.name, ru.proto, strconv.Itoa(ru.port))
-		if err != nil {
-			failed = true
-			msgs = append(msgs, fmt.Sprintf("%s: %v %s", ru.name, err, out))
-		} else {
-			msgs = append(msgs, fmt.Sprintf("%s: ok", ru.name))
-		}
-	}
-	// 被动端口段
-	if cfg.PassiveRange[1] > 0 {
-		portRange := fmt.Sprintf("%d-%d", cfg.PassiveRange[0], cfg.PassiveRange[1])
-		out, err := runNetsh("opensvr-ftp-passive", "TCP", portRange)
-		if err != nil {
-			failed = true
-			msgs = append(msgs, fmt.Sprintf("passive: %v %s", err, out))
-		} else {
-			msgs = append(msgs, "passive: ok")
-		}
-	}
-	resp := map[string]any{"ok": !failed, "detail": msgs}
-	if failed {
+	if err := (firewall.Netsh{}).Allow(rules); err != nil {
 		rw.WriteHeader(http.StatusInternalServerError)
+		writeJSON(rw, map[string]any{"ok": false, "detail": []string{err.Error()}})
+		return
 	}
-	writeJSON(rw, resp)
-}
-
-// runNetsh 添加一条 Windows 防火墙入站放行规则。
-func runNetsh(name, proto, port string) (string, error) {
-	cmd := exec.Command("netsh", "advfirewall", "firewall", "add", "rule",
-		"name="+name, "dir=in", "action=allow",
-		"protocol="+proto, "localport="+port)
-	out, err := cmd.CombinedOutput()
-	return string(out), err
+	for _, ru := range rules {
+		msgs = append(msgs, fmt.Sprintf("%s(%s %s): ok", ru.Name, ru.Proto, ru.Port))
+	}
+	writeJSON(rw, map[string]any{"ok": true, "detail": msgs})
 }
 
 // handleEvents SSE：推送 logbus 事件。
@@ -347,20 +357,5 @@ func writeSSE(rw http.ResponseWriter, v any) {
 
 // splitPath 按 '/' 分割并去除空段。
 func splitPath(p string) []string {
-	var out []string
-	cur := ""
-	for _, c := range p {
-		if c == '/' {
-			if cur != "" {
-				out = append(out, cur)
-				cur = ""
-			}
-		} else {
-			cur += string(c)
-		}
-	}
-	if cur != "" {
-		out = append(out, cur)
-	}
-	return out
+	return strings.FieldsFunc(p, func(r rune) bool { return r == '/' })
 }

@@ -17,7 +17,7 @@ type Rule struct {
 
 // Controller 是防火墙控制器接口：随协议启停自动放行/清理。
 type Controller interface {
-	Allow(rules []Rule) error   // 幂等放行给定规则
+	Allow(rules []Rule) error    // 幂等放行给定规则
 	Remove(names []string) error // 按规则名删除
 }
 

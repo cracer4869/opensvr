@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+
+	"opensvr/internal/logbus"
 )
 
 // defaultRootName 是可移植默认根目录的子目录名（位于 exe 同级）。
@@ -111,6 +113,8 @@ func ResolveRoot(rootDir, baseDir string) (resolved string, warning string) {
 }
 
 // Load 从 path 读取配置；文件不存在时返回默认配置。
+// 文件损坏（如断电写坏）时不让程序启动失败：把坏文件改名备份为 <path>.bad，
+// 返回默认配置并附 warning 供上层提示。
 func Load(path string) (*Config, error) {
 	b, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -121,16 +125,24 @@ func Load(path string) (*Config, error) {
 	}
 	c := Default()
 	if err := yaml.Unmarshal(b, c); err != nil {
-		return nil, err
+		_ = os.Rename(path, path+".bad")
+		logbus.Emit(logbus.Event{Proto: "web", Action: "load-config", OK: false,
+			Msg: fmt.Sprintf("config.yaml 解析失败(%v)，已备份为 config.yaml.bad 并使用默认配置", err)})
+		return Default(), nil
 	}
 	return c, nil
 }
 
-// Save 将配置写入 path。
+// Save 将配置原子写入 path：先写临时文件再 rename 替换，
+// 断电/崩溃时不会留下半截的 config.yaml。
 func (c *Config) Save(path string) error {
 	b, err := yaml.Marshal(c)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0644)
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, b, 0644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }

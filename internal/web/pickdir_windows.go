@@ -58,10 +58,12 @@ var (
 )
 
 // comCall 调用 COM 对象 this 虚表第 method 个方法（this 作为隐式首参传入）。
-func comCall(this uintptr, method int, args ...uintptr) uintptr {
-	vtbl := *(*uintptr)(unsafe.Pointer(this))
-	fn := *(*uintptr)(unsafe.Pointer(vtbl + uintptr(method)*unsafe.Sizeof(uintptr(0))))
-	ret, _, _ := syscall.SyscallN(fn, append([]uintptr{this}, args...)...)
+// this 保持 unsafe.Pointer 类型（COM 对象非 Go 托管内存），避免 uintptr 中转
+// 触发 go vet 的 unsafe.Pointer 误用告警。
+func comCall(this unsafe.Pointer, method int, args ...uintptr) uintptr {
+	vtbl := *(*unsafe.Pointer)(this)
+	fn := *(*uintptr)(unsafe.Add(vtbl, uintptr(method)*unsafe.Sizeof(uintptr(0))))
+	ret, _, _ := syscall.SyscallN(fn, append([]uintptr{uintptr(this)}, args...)...)
 	return ret
 }
 
@@ -83,7 +85,7 @@ func pickFolder() (string, error) {
 		return "", fmt.Errorf("CoInitializeEx 失败: 0x%08x", uint32(hr))
 	}
 
-	var dialog uintptr
+	var dialog unsafe.Pointer
 	hr, _, _ = procCoCreateInstance.Call(
 		uintptr(unsafe.Pointer(&clsidFileOpenDialog)),
 		0,
@@ -91,7 +93,7 @@ func pickFolder() (string, error) {
 		uintptr(unsafe.Pointer(&iidFileOpenDialog)),
 		uintptr(unsafe.Pointer(&dialog)),
 	)
-	if failed(hr) || dialog == 0 {
+	if failed(hr) || dialog == nil {
 		return "", fmt.Errorf("创建文件对话框失败: 0x%08x", uint32(hr))
 	}
 	defer comCall(dialog, mIUnknownRelease)
@@ -117,19 +119,19 @@ func pickFolder() (string, error) {
 		return "", fmt.Errorf("打开对话框失败: 0x%08x", uint32(hr))
 	}
 
-	var item uintptr
+	var item unsafe.Pointer
 	hr = comCall(dialog, mGetResult, uintptr(unsafe.Pointer(&item)))
-	if failed(hr) || item == 0 {
+	if failed(hr) || item == nil {
 		return "", fmt.Errorf("读取选择结果失败: 0x%08x", uint32(hr))
 	}
 	defer comCall(item, mIUnknownRelease)
 
-	var psz uintptr
+	var psz *uint16
 	hr = comCall(item, mGetDisplayName, sigdnFilesysPath, uintptr(unsafe.Pointer(&psz)))
-	if failed(hr) || psz == 0 {
+	if failed(hr) || psz == nil {
 		return "", fmt.Errorf("读取路径失败: 0x%08x", uint32(hr))
 	}
-	defer procCoTaskMemFree.Call(psz)
+	defer procCoTaskMemFree.Call(uintptr(unsafe.Pointer(psz)))
 
-	return windows.UTF16PtrToString((*uint16)(unsafe.Pointer(psz))), nil
+	return windows.UTF16PtrToString(psz), nil
 }

@@ -13,6 +13,7 @@ import (
 	"opensvr/internal/firewall"
 	"opensvr/internal/ftpsrv"
 	"opensvr/internal/hostkey"
+	"opensvr/internal/logbus"
 	"opensvr/internal/sftpsrv"
 	"opensvr/internal/tftpsrv"
 	"opensvr/internal/vfs"
@@ -106,8 +107,9 @@ func (m *Manager) StartFTP() error {
 		return err
 	}
 	m.cfg.FTP.Enabled = true
-	m.fw.Allow(m.ftpRules())
-	return m.save()
+	m.allowFW(m.ftpRules())
+	m.saveWarn()
+	return nil
 }
 
 // StopFTP 停止 FTP 服务。
@@ -119,7 +121,8 @@ func (m *Manager) StopFTP() error {
 	}
 	m.cfg.FTP.Enabled = false
 	m.fw.Remove(ruleNames(m.ftpRules()))
-	return m.save()
+	m.saveWarn()
+	return nil
 }
 
 // StartSFTP 启动 SFTP 服务。
@@ -130,8 +133,9 @@ func (m *Manager) StartSFTP() error {
 		return err
 	}
 	m.cfg.SFTP.Enabled = true
-	m.fw.Allow(m.sftpRules())
-	return m.save()
+	m.allowFW(m.sftpRules())
+	m.saveWarn()
+	return nil
 }
 
 // StopSFTP 停止 SFTP 服务。
@@ -143,7 +147,8 @@ func (m *Manager) StopSFTP() error {
 	}
 	m.cfg.SFTP.Enabled = false
 	m.fw.Remove(ruleNames(m.sftpRules()))
-	return m.save()
+	m.saveWarn()
+	return nil
 }
 
 // StartTFTP 启动 TFTP 服务。
@@ -154,8 +159,9 @@ func (m *Manager) StartTFTP() error {
 		return err
 	}
 	m.cfg.TFTP.Enabled = true
-	m.fw.Allow(m.tftpRules())
-	return m.save()
+	m.allowFW(m.tftpRules())
+	m.saveWarn()
+	return nil
 }
 
 // StopTFTP 停止 TFTP 服务。
@@ -167,7 +173,18 @@ func (m *Manager) StopTFTP() error {
 	}
 	m.cfg.TFTP.Enabled = false
 	m.fw.Remove(ruleNames(m.tftpRules()))
-	return m.save()
+	m.saveWarn()
+	return nil
+}
+
+// StopAll 停止全部协议服务，但不改动配置中的 Enabled 记忆（供进程退出时优雅关闭，
+// 下次启动仍按上次的开关自动拉起）。
+func (m *Manager) StopAll() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	_ = m.ftp.Stop()
+	_ = m.sftp.Stop()
+	_ = m.tftp.Stop()
 }
 
 // ----- 防火墙 -----
@@ -211,6 +228,24 @@ func (m *Manager) tftpRules() []firewall.Rule {
 	return []firewall.Rule{{Name: "opensvr-tftp", Proto: "UDP", Port: strconv.Itoa(m.cfg.TFTP.Port)}}
 }
 
+// FirewallRules 返回三协议当前端口对应的全部放行规则，供 Web 手动放行按钮复用。
+func (m *Manager) FirewallRules() []firewall.Rule {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	rules := m.ftpRules()
+	rules = append(rules, m.sftpRules()...)
+	rules = append(rules, m.tftpRules()...)
+	return rules
+}
+
+// allowFW 放行规则并把失败写入日志（提权下 netsh 也可能失败，如防火墙服务停用；
+// 静默丢弃会让页面显示"已自动放行"而实际未放行）。调用方需持锁。
+func (m *Manager) allowFW(rules []firewall.Rule) {
+	if err := m.fw.Allow(rules); err != nil {
+		logbus.Emit(logbus.Event{Proto: "web", Action: "firewall-allow", OK: false, Msg: err.Error()})
+	}
+}
+
 // ruleNames 提取规则名切片。
 func ruleNames(rules []firewall.Rule) []string {
 	names := make([]string, len(rules))
@@ -237,7 +272,8 @@ func (m *Manager) SetRoot(dir string) error {
 	}
 	m.cfg.RootDir = dir
 	m.rootWarning = warning
-	return m.save()
+	m.saveWarn()
+	return nil
 }
 
 // SetAuth 更新账号口令：更新 auth、cfg 并持久化。
@@ -246,7 +282,7 @@ func (m *Manager) SetAuth(cfg config.AuthCfg) {
 	defer m.mu.Unlock()
 	m.a.Update(cfg)
 	m.cfg.Auth = cfg
-	_ = m.save()
+	m.saveWarn()
 }
 
 // SetPerms 更新目录操作权限：即时作用于 vfs、更新 cfg 并持久化。
@@ -255,10 +291,10 @@ func (m *Manager) SetPerms(p config.Perms) {
 	defer m.mu.Unlock()
 	m.v.SetPerms(p)
 	m.cfg.Perms = p
-	_ = m.save()
+	m.saveWarn()
 }
 
-// SetPort 修改指定协议端口并重建实例；若该协议在运行则先停后启。
+// SetPort 修改指定协议端口并重建实例；若该协议在运行则先停后启，并刷新防火墙放行端口。
 func (m *Manager) SetPort(proto string, port int) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -272,8 +308,12 @@ func (m *Manager) SetPort(proto string, port int) error {
 		m.buildFTP()
 		if running {
 			if err := m.ftp.Start(); err != nil {
+				m.cfg.FTP.Enabled = false
+				m.saveWarn()
 				return err
 			}
+			// 规则同名先删后加，Allow 即完成"旧端口规则→新端口规则"的替换。
+			m.allowFW(m.ftpRules())
 		}
 	case "sftp":
 		running := m.sftp.Status().Running
@@ -284,8 +324,11 @@ func (m *Manager) SetPort(proto string, port int) error {
 		m.buildSFTP()
 		if running {
 			if err := m.sftp.Start(); err != nil {
+				m.cfg.SFTP.Enabled = false
+				m.saveWarn()
 				return err
 			}
+			m.allowFW(m.sftpRules())
 		}
 	case "tftp":
 		running := m.tftp.Status().Running
@@ -296,13 +339,17 @@ func (m *Manager) SetPort(proto string, port int) error {
 		m.buildTFTP()
 		if running {
 			if err := m.tftp.Start(); err != nil {
+				m.cfg.TFTP.Enabled = false
+				m.saveWarn()
 				return err
 			}
+			m.allowFW(m.tftpRules())
 		}
 	default:
 		return nil
 	}
-	return m.save()
+	m.saveWarn()
+	return nil
 }
 
 // ----- 状态与配置访问 -----
@@ -321,11 +368,12 @@ func (m *Manager) Statuses() map[string]Status {
 	}
 }
 
-// Config 返回当前配置指针。
-func (m *Manager) Config() *config.Config {
+// Config 返回当前配置的值拷贝（Config 全为值类型字段，浅拷贝即完整快照）。
+// 不返回内部指针：调用方在锁外读取，返回指针会与 SetPort/SetAuth 等并发写构成数据竞争。
+func (m *Manager) Config() config.Config {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return m.cfg
+	return *m.cfg
 }
 
 // Auth 返回口令库，供 Web 展示明文账号。
@@ -354,4 +402,12 @@ func (m *Manager) Save() error {
 // save 内部持久化（调用方需持锁）。
 func (m *Manager) save() error {
 	return m.cfg.Save(m.cfgPath)
+}
+
+// saveWarn 持久化配置；失败仅记日志不上抛——启停/改配置本身已成功，
+// 磁盘只读（如 U 盘写保护）不应让页面误报操作失败。调用方需持锁。
+func (m *Manager) saveWarn() {
+	if err := m.save(); err != nil {
+		logbus.Emit(logbus.Event{Proto: "web", Action: "save-config", OK: false, Msg: err.Error()})
+	}
 }

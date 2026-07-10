@@ -17,6 +17,7 @@ import (
 	"opensvr/internal/auth"
 	"opensvr/internal/config"
 	"opensvr/internal/hostkey"
+	"opensvr/internal/metrics"
 	"opensvr/internal/vfs"
 )
 
@@ -171,4 +172,38 @@ func TestSCPDownloadMissingRejected(t *testing.T) {
 		t.Fatalf("缺失文件应返回 0x02 错误字节, 实得 0x%02x", b)
 	}
 	sess.Wait()
+}
+
+// TestSCPUploadMetricsNotDoubled：SCP 传输字节只应计一次（vfs 层），不得翻倍。
+func TestSCPUploadMetricsNotDoubled(t *testing.T) {
+	metrics.Reset()
+	conn, root := startSCPServer(t)
+	content := []byte("exactly-counted-bytes")
+
+	sess, err := conn.NewSession()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sess.Close()
+	w, _ := sess.StdinPipe()
+	r, _ := sess.StdoutPipe()
+	if err := sess.Start("scp -t /m.bin"); err != nil {
+		t.Fatal(err)
+	}
+	br := bufio.NewReader(r)
+	mustReadZero(t, br)
+	fmt.Fprintf(w, "C0644 %d m.bin\n", len(content))
+	mustReadZero(t, br)
+	w.Write(content)
+	w.Write([]byte{0})
+	mustReadZero(t, br)
+	w.Close()
+	sess.Wait()
+
+	if _, err := os.Stat(filepath.Join(root, "m.bin")); err != nil {
+		t.Fatal(err)
+	}
+	if got := metrics.Snapshot().UpTotal; got != int64(len(content)) {
+		t.Fatalf("上行计数应恰为 %d 字节(不得重复计数), 实得 %d", len(content), got)
+	}
 }

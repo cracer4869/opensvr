@@ -92,7 +92,7 @@ copy flash:<file> scp://admin:admin@<PC_IP>/   # SCP：上传到 PC
 
 ## 从源码构建
 
-需 Go 1.22+：
+需 Go 1.26+：
 ```
 build.bat        # 等价于 CGO_ENABLED=0 go build -ldflags "-s -w -H=windowsgui" -o opensvr.exe ./cmd/opensvr
 ```

@@ -30,11 +30,17 @@ func (w *Web) handlePerms(rw http.ResponseWriter, r *http.Request) {
 
 // handlePickDir 处理 POST /api/pickdir：在本机弹出 Windows 原生文件夹选择框，
 // 用户选定后即设为共享根目录并返回结果；取消则不改动。
+// 单飞：对话框未关闭前的重复请求直接返回 409，避免叠出多个 STA 对话框。
 func (w *Web) handlePickDir(rw http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(rw, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !w.picking.CompareAndSwap(false, true) {
+		http.Error(rw, "目录选择框已打开，请先完成或取消", http.StatusConflict)
+		return
+	}
+	defer w.picking.Store(false)
 	dir, err := pickFolder()
 	if err != nil {
 		http.Error(rw, "弹出目录选择框失败: "+err.Error(), http.StatusInternalServerError)

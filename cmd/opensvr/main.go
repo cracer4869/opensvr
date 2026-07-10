@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
@@ -40,9 +41,17 @@ func onReady() {
 	cfgPath := filepath.Join(dir, "config.yaml")
 
 	stop, url, err := run(cfgPath, dir)
-	if err != nil {
+	switch {
+	case errors.Is(err, ErrAlreadyRunning):
+		// 已有实例：打开它的管理页并退出本进程，避免双实例互相干扰。
+		_ = web.OpenBrowser(url)
+		systray.Quit()
+		return
+	case err != nil:
 		systray.SetTooltip("opensvr 启动失败: " + err.Error())
-	} else {
+		// tooltip 现场很难注意到，再挂一个禁用菜单项常显错误。
+		systray.AddMenuItem("启动失败: "+err.Error(), err.Error()).Disable()
+	default:
 		trayStop = stop
 		trayURL = url
 		systray.SetTooltip("opensvr 管理页: " + url)
