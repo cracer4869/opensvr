@@ -6,8 +6,9 @@ import (
 	"net"
 	"path"
 	"sync"
+	"time"
 
-	"github.com/pin/tftp"
+	"github.com/pin/tftp/v3"
 
 	"opensvr/internal/logbus"
 	"opensvr/internal/sessions"
@@ -121,9 +122,23 @@ func (s *Server) Start() error {
 	s.conn = conn
 	s.boundPort = conn.LocalAddr().(*net.UDPAddr).Port
 	s.srv = tftp.NewServer(s.readHandler, s.writeHandler)
+	// 现网提速与丢包快恢复（v2 是 512B 逐包等 ACK + 丢包停 5s+随机 1s，速度常被拖到 KB/s）：
+	//  - 提前连发 8 块：不再每块干等 ACK，RTT 受限链路吞吐提升数倍，普通客户端照常逐块 ACK 即可；
+	//  - 重传等待降为 1s + 线性退避（封顶 1s）：丢包后快速恢复；
+	//  - 重试 20 次：总耐心 ~37s 不低于旧默认（5s×5+随机），兼容设备写 flash 的长停顿。
+	s.srv.SetAnticipate(8)
+	s.srv.SetTimeout(time.Second)
+	s.srv.SetRetries(20)
+	s.srv.SetBackoff(func(attempt int) time.Duration {
+		d := time.Duration(attempt) * 200 * time.Millisecond
+		if d > time.Second {
+			d = time.Second
+		}
+		return d
+	})
 	s.running = true
 	s.err = ""
-	go s.srv.Serve(conn.(*net.UDPConn))
+	go func() { _ = s.srv.Serve(conn) }()
 	return nil
 }
 

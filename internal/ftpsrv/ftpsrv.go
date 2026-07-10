@@ -95,8 +95,8 @@ func (d *driver) AuthUser(cc ftpserver.ClientContext, user, pass string) (ftpser
 	id := d.ids[cc.ID()]
 	d.mu.Unlock()
 	sessions.Update(id, func(s *sessions.Session) { s.User = user })
-	// 返回会话感知的 Fs：传输字节回填到该会话（底层仍是囚笼+metrics 计数的 vfs）。
-	return newSessionFs(d.s.v.Fs(), id), nil
+	// 返回会话感知的 Fs：传输/增删改记日志，传输字节回填到该会话（底层仍是囚笼+metrics 计数的 vfs）。
+	return newSessionFs(d.s.v.Fs(), id, user), nil
 }
 
 func (d *driver) GetTLSConfig() (*tls.Config, error) {

@@ -150,7 +150,7 @@ func (s *Server) handleConn(c net.Conn, sc *ssh.ServerConfig) {
 		if err != nil {
 			continue
 		}
-		go s.serveChannel(ch, requests, sessID)
+		go s.serveChannel(ch, requests, sessID, conn.User())
 	}
 }
 
@@ -160,14 +160,14 @@ func (s *Server) handleConn(c net.Conn, sc *ssh.ServerConfig) {
 //   - 其余             -> 拒绝
 //
 // 请求循环持续 drain 直到对端关闭 channel；实际传输在各自 goroutine 内进行。
-func (s *Server) serveChannel(ch ssh.Channel, in <-chan *ssh.Request, sessID string) {
+func (s *Server) serveChannel(ch ssh.Channel, in <-chan *ssh.Request, sessID, user string) {
 	for r := range in {
 		switch r.Type {
 		case "subsystem":
 			if len(r.Payload) >= 4 && string(r.Payload[4:]) == "sftp" {
 				r.Reply(true, nil)
-				// Handlers 走 vfs.Fs()（afero，已囚笼），读写计入 metrics 与会话。
-				h := newHandlers(s.v, sessID)
+				// Handlers 走 vfs.Fs()（afero，已囚笼），读写计入 metrics 与会话，操作记日志。
+				h := newHandlers(s.v, sessID, user)
 				go func() { _ = sftp.NewRequestServer(ch, h).Serve(); ch.Close() }()
 				continue
 			}

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/jlaffaye/ftp"
-	"github.com/pin/tftp"
+	"github.com/pin/tftp/v3"
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
@@ -20,9 +20,18 @@ import (
 
 // statusResp 用于解析 /api/status 中我们关心的字段。
 type statusResp struct {
-	FTP  struct{ Running bool `json:"running"`; Port int `json:"port"` } `json:"ftp"`
-	SFTP struct{ Running bool `json:"running"`; Port int `json:"port"` } `json:"sftp"`
-	TFTP struct{ Running bool `json:"running"`; Port int `json:"port"` } `json:"tftp"`
+	FTP struct {
+		Running bool `json:"running"`
+		Port    int  `json:"port"`
+	} `json:"ftp"`
+	SFTP struct {
+		Running bool `json:"running"`
+		Port    int  `json:"port"`
+	} `json:"sftp"`
+	TFTP struct {
+		Running bool `json:"running"`
+		Port    int  `json:"port"`
+	} `json:"tftp"`
 	Root string `json:"root"`
 }
 
@@ -116,7 +125,7 @@ func TestEndToEndAllProtocols(t *testing.T) {
 	// ---- 校验三个中文文件都落盘到根目录 ----
 	for name, want := range map[string]string{
 		"版本补丁_ftp.bin":  "ftp-固件",
-		"配置_sftp.cfg":    "sftp-配置",
+		"配置_sftp.cfg":   "sftp-配置",
 		"版本补丁_tftp.bin": "tftp-固件",
 	} {
 		b, err := os.ReadFile(filepath.Join(root, name))

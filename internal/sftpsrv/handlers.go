@@ -14,9 +14,9 @@ import (
 )
 
 // newHandlers 基于 vfs 的 afero.Fs（囚笼在 root 内）构造 sftp.Handlers。
-// sessID 用于把读写进度回填到会话面板。
-func newHandlers(v *vfs.VFS, sessID string) sftp.Handlers {
-	h := &aferoHandler{v: v, sess: sessID}
+// sessID 用于把读写进度回填到会话面板，user 用于操作日志归属。
+func newHandlers(v *vfs.VFS, sessID, user string) sftp.Handlers {
+	h := &aferoHandler{v: v, sess: sessID, user: user}
 	return sftp.Handlers{
 		FileGet:  h,
 		FilePut:  h,
@@ -29,18 +29,27 @@ func newHandlers(v *vfs.VFS, sessID string) sftp.Handlers {
 type aferoHandler struct {
 	v    *vfs.VFS
 	sess string
+	user string
 }
 
 func (h *aferoHandler) fs() afero.Fs { return h.v.Fs() }
 
+// emit 写一条 SFTP 操作日志；err 非空时记为失败并附错误信息。
+func (h *aferoHandler) emit(action, path, msg string, err error) {
+	e := logbus.Event{Proto: "sftp", User: h.user, Action: action, Path: path, OK: err == nil, Msg: msg}
+	if err != nil {
+		e.Msg = err.Error()
+	}
+	logbus.Emit(e)
+}
+
 // Fileread 处理下载（Get）。
 func (h *aferoHandler) Fileread(r *sftp.Request) (io.ReaderAt, error) {
 	f, err := h.fs().Open(r.Filepath)
+	h.emit("download", r.Filepath, "", err)
 	if err != nil {
-		logbus.Emit(logbus.Event{Proto: "sftp", Action: "download", Path: r.Filepath, OK: false, Msg: err.Error()})
 		return nil, err
 	}
-	logbus.Emit(logbus.Event{Proto: "sftp", Action: "download", Path: r.Filepath, OK: true})
 	sessions.Update(h.sess, func(s *sessions.Session) { s.Action = "download"; s.File = r.Filepath })
 	return &countingReaderAt{f: f, sess: h.sess}, nil
 }
@@ -63,25 +72,30 @@ func (h *aferoHandler) Filewrite(r *sftp.Request) (io.WriterAt, error) {
 		flags |= os.O_CREATE | os.O_TRUNC
 	}
 	f, err := h.fs().OpenFile(r.Filepath, flags, 0644)
+	h.emit("upload", r.Filepath, "", err)
 	if err != nil {
-		logbus.Emit(logbus.Event{Proto: "sftp", Action: "upload", Path: r.Filepath, OK: false, Msg: err.Error()})
 		return nil, err
 	}
-	logbus.Emit(logbus.Event{Proto: "sftp", Action: "upload", Path: r.Filepath, OK: true})
 	sessions.Update(h.sess, func(s *sessions.Session) { s.Action = "upload"; s.File = r.Filepath })
 	return &countingWriterAt{f: f, sess: h.sess}, nil
 }
 
-// Filecmd 处理 Mkdir/Rmdir/Remove/Rename/Setstat 等。
+// Filecmd 处理 Mkdir/Rmdir/Remove/Rename/Setstat 等，增删改记入日志。
 func (h *aferoHandler) Filecmd(r *sftp.Request) error {
 	fs := h.fs()
 	switch r.Method {
 	case "Mkdir":
-		return fs.MkdirAll(r.Filepath, 0755)
+		err := fs.MkdirAll(r.Filepath, 0755)
+		h.emit("mkdir", r.Filepath, "", err)
+		return err
 	case "Rmdir", "Remove":
-		return fs.Remove(r.Filepath)
+		err := fs.Remove(r.Filepath)
+		h.emit("delete", r.Filepath, "", err)
+		return err
 	case "Rename":
-		return fs.Rename(r.Filepath, r.Target)
+		err := fs.Rename(r.Filepath, r.Target)
+		h.emit("rename", r.Filepath, "→ "+r.Target, err)
+		return err
 	case "Setstat":
 		// 忽略权限/时间设置，避免客户端因不支持而报错。
 		return nil
