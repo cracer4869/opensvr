@@ -7,7 +7,7 @@ import (
 
 	"github.com/getlantern/systray"
 
-	"opensvr/internal/web"
+	"github.com/cracer4869/opensvr/internal/web"
 )
 
 // 托盘运行期状态：由 onReady 填充，onExit 消费。

@@ -3,7 +3,7 @@ package auth
 import (
 	"testing"
 
-	"opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/config"
 )
 
 func TestAuthenticate(t *testing.T) {

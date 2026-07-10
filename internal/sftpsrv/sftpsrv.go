@@ -8,10 +8,10 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
-	"opensvr/internal/auth"
-	"opensvr/internal/logbus"
-	"opensvr/internal/sessions"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/auth"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/sessions"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 // Status 表示 SFTP 服务端的运行状态。

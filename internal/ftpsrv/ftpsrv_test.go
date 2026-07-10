@@ -7,9 +7,9 @@ import (
 
 	"github.com/jlaffaye/ftp"
 
-	"opensvr/internal/auth"
-	"opensvr/internal/config"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/auth"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 func startTestServer(t *testing.T) (*Server, string) {

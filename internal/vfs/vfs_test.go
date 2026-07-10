@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"opensvr/internal/config"
-	"opensvr/internal/metrics"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/metrics"
 )
 
 func TestJailBlocksTraversal(t *testing.T) {

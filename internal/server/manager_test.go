@@ -3,8 +3,8 @@ package server
 import (
 	"testing"
 
-	"opensvr/internal/config"
-	"opensvr/internal/firewall"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/firewall"
 )
 
 func TestManagerStartStopFTP(t *testing.T) {

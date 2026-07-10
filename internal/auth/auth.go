@@ -4,7 +4,7 @@ import (
 	"crypto/subtle"
 	"sync"
 
-	"opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/config"
 )
 
 // Store 口令库，线程安全。

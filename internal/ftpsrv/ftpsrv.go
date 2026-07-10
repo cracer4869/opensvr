@@ -9,10 +9,10 @@ import (
 
 	ftpserver "github.com/fclairamb/ftpserverlib"
 
-	"opensvr/internal/auth"
-	"opensvr/internal/logbus"
-	"opensvr/internal/sessions"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/auth"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/sessions"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 // Status 描述 FTP 服务端运行状态。

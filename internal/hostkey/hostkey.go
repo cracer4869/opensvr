@@ -11,7 +11,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/logbus"
 )
 
 // LoadOrCreate 加载指定路径的 ed25519 SFTP 主机私钥；缺失则生成并以 PEM 持久化。

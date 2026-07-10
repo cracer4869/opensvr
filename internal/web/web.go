@@ -13,11 +13,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"opensvr/internal/firewall"
-	"opensvr/internal/logbus"
-	"opensvr/internal/metrics"
-	"opensvr/internal/netinfo"
-	"opensvr/internal/server"
+	"github.com/cracer4869/opensvr/internal/firewall"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/metrics"
+	"github.com/cracer4869/opensvr/internal/netinfo"
+	"github.com/cracer4869/opensvr/internal/server"
 )
 
 //go:embed assets/*

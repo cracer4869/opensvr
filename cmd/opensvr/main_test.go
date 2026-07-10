@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/config"
 )
 
 // freePort 申请一个空闲 TCP 端口用于测试（避免与真实服务冲突）。

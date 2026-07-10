@@ -9,10 +9,10 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
-	"opensvr/internal/auth"
-	"opensvr/internal/config"
-	"opensvr/internal/hostkey"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/auth"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/hostkey"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 func TestSFTPUploadDownload(t *testing.T) {

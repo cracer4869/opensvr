@@ -9,7 +9,7 @@ import (
 
 	"github.com/pin/tftp/v3"
 
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 // TestTFTPThroughputBaseline 测量 loopback 下载/上传吞吐，防止性能回退。

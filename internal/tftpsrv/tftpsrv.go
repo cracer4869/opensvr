@@ -10,9 +10,9 @@ import (
 
 	"github.com/pin/tftp/v3"
 
-	"opensvr/internal/logbus"
-	"opensvr/internal/sessions"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/sessions"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 type Status struct {

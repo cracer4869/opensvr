@@ -7,7 +7,7 @@ import (
 
 	"github.com/pin/tftp/v3"
 
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 func TestTFTPWriteThenRead(t *testing.T) {

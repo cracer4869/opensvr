@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"opensvr/internal/config"
-	"opensvr/internal/server"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/server"
 )
 
 func TestStatusEndpoint(t *testing.T) {

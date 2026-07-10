@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"opensvr/internal/config"
-	"opensvr/internal/firewall"
-	"opensvr/internal/metrics"
-	"opensvr/internal/server"
-	"opensvr/internal/web"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/firewall"
+	"github.com/cracer4869/opensvr/internal/metrics"
+	"github.com/cracer4869/opensvr/internal/server"
+	"github.com/cracer4869/opensvr/internal/web"
 )
 
 // ErrAlreadyRunning 表示管理页端口已被另一个 opensvr 实例占用。

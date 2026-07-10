@@ -12,8 +12,8 @@ import (
 	"github.com/spf13/afero"
 	"golang.org/x/crypto/ssh"
 
-	"opensvr/internal/logbus"
-	"opensvr/internal/sessions"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/sessions"
 )
 
 // SCP over SSH（rcp 协议）单文件双向实现：覆盖只走 SCP 的网络设备

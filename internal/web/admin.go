@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"opensvr/internal/config"
-	"opensvr/internal/sessions"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/sessions"
 )
 
 // handleSessions 返回当前活跃连接/传输。

@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 
-	"opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/config"
 )
 
 // statusResp 用于解析 /api/status 中我们关心的字段。

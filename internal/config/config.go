@@ -8,7 +8,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/logbus"
 )
 
 // defaultRootName 是可移植默认根目录的子目录名（位于 exe 同级）。

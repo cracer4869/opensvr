@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/afero"
 
-	"opensvr/internal/config"
-	"opensvr/internal/metrics"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/metrics"
 )
 
 // VFS 是三协议共用的根目录文件系统抽象：afero 囚笼 + 字节计数 + 权限强制。

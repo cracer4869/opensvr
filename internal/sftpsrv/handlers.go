@@ -7,10 +7,10 @@ import (
 	"github.com/pkg/sftp"
 	"github.com/spf13/afero"
 
-	"opensvr/internal/logbus"
-	"opensvr/internal/metrics"
-	"opensvr/internal/sessions"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/metrics"
+	"github.com/cracer4869/opensvr/internal/sessions"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 // newHandlers 基于 vfs 的 afero.Fs（囚笼在 root 内）构造 sftp.Handlers。

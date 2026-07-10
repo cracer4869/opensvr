@@ -14,11 +14,11 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"opensvr/internal/auth"
-	"opensvr/internal/config"
-	"opensvr/internal/hostkey"
-	"opensvr/internal/metrics"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/auth"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/hostkey"
+	"github.com/cracer4869/opensvr/internal/metrics"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 // startSCPServer 起一个 SFTP/SCP 测试服务端，返回已建立的 ssh 连接与 vfs 根目录。

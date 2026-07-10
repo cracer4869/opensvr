@@ -7,7 +7,7 @@ import (
 
 	"github.com/spf13/afero"
 
-	"opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/logbus"
 )
 
 // firstEvent 返回第一条匹配 action 的日志事件。

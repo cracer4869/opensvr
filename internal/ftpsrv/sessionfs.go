@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/afero"
 
-	"opensvr/internal/logbus"
-	"opensvr/internal/sessions"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/sessions"
 )
 
 // sessionFs 包装 afero.Fs：文件传输与增删改操作写入 logbus 日志，

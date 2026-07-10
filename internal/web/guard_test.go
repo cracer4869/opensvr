@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"opensvr/internal/config"
-	"opensvr/internal/server"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/server"
 )
 
 // newTestWeb 构造一个带默认配置的 Web 实例（不启动监听）。

@@ -7,8 +7,8 @@ import (
 	"github.com/pkg/sftp"
 	"github.com/spf13/afero"
 
-	"opensvr/internal/logbus"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 // firstEvent 返回第一条匹配 action 的日志事件。

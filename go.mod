@@ -1,4 +1,4 @@
-module opensvr
+module github.com/cracer4869/opensvr
 
 go 1.26.4
 

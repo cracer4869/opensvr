@@ -8,15 +8,15 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"opensvr/internal/auth"
-	"opensvr/internal/config"
-	"opensvr/internal/firewall"
-	"opensvr/internal/ftpsrv"
-	"opensvr/internal/hostkey"
-	"opensvr/internal/logbus"
-	"opensvr/internal/sftpsrv"
-	"opensvr/internal/tftpsrv"
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/auth"
+	"github.com/cracer4869/opensvr/internal/config"
+	"github.com/cracer4869/opensvr/internal/firewall"
+	"github.com/cracer4869/opensvr/internal/ftpsrv"
+	"github.com/cracer4869/opensvr/internal/hostkey"
+	"github.com/cracer4869/opensvr/internal/logbus"
+	"github.com/cracer4869/opensvr/internal/sftpsrv"
+	"github.com/cracer4869/opensvr/internal/tftpsrv"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 // Status 是三协议统一的运行状态（Web/前端统一使用）。

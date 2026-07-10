@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/afero"
 
-	"opensvr/internal/vfs"
+	"github.com/cracer4869/opensvr/internal/vfs"
 )
 
 // TestTFTPAnticipateWindowSendsAhead 验证服务端启用提前连发窗口：
