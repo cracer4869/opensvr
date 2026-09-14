@@ -42,6 +42,14 @@ go install github.com/cracer4869/opensvr/cmd/opensvr@latest
 
 本工具定位是**现场临时开局**，不是长期驻网服务：账号密码明文存于本机 config.yaml 并在管理页明文展示（方便现场抄给设备命令行），Web 管理页仅监听 127.0.0.1。用完即关，勿在不受信网络长期开放。
 
+## 作者与支持
+
+项目维护者：[Cracer（@cracer4869）](https://github.com/cracer4869)。
+
+我已入驻爱发电，创作者主页是 **[afdian.com/a/nsfw_09](https://afdian.com/a/nsfw_09)**。本 GitHub 账号与该爱发电主页由我本人使用。
+
+如果 opensvr 对你有帮助，欢迎通过爱发电支持后续开发和维护。使用问题与功能建议请提交 [Issue](https://github.com/cracer4869/opensvr/issues)。
+
 ## Acknowledgements / 致谢
 
 Thanks to the [Linux.do](https://linux.do/) community for project promotion and feedback.
